@@ -9,7 +9,7 @@
 bin/
 out/
 dist/
-server
+
 
 # ====================================================================
 # 2. ENVIRONMENT VARIABLES & SECRETS
