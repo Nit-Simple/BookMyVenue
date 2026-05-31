@@ -1,0 +1,17 @@
+services:
+  venue-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgresforbookmyvenue
+      POSTGRES_PASSWORD: postgresforvenuepassword
+      POSTGRES_DB: nithul-bookmyvenue
+    ports:
+      - "5454:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  venue-cache:
+    image: redis:7-alpine
+    ports:
+      - "6341:6379"
+volumes:
+  postgres_data:
