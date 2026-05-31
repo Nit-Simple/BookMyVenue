@@ -7,11 +7,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"log"
-	"net"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -34,9 +31,8 @@ type Config struct {
 	//redis
 	RedisUrl string
 	// App
-	Environment    string
-	EncryptionKey  []byte
-	TrustedProxies []string
+	Environment   string
+	EncryptionKey []byte
 
 	JWTPrivateKey ed25519.PrivateKey
 	JWTPublicKey  ed25519.PublicKey
@@ -73,9 +69,6 @@ func Load() (*Config, error) {
 	cfg.DBMaxConnIdle = getDuration("DB_MAX_CONN_IDLE", 30*time.Minute)
 	cfg.ReadHeaderTimeout = getDuration("READ_HEADER_TIMEOUT", 2*time.Second)
 
-	cfg.TrustedProxies = GetTrustedProxies("TRUSTED_PROXIES")
-
-	// optional with defaults
 	cfg.JWTExpiry = getDuration("JWT_EXPIRY", 15*time.Minute)
 	cfg.RefreshExpiry = getDuration("REFRESH_EXPIRY", 7*24*time.Hour)
 
@@ -102,7 +95,7 @@ func Load() (*Config, error) {
 	}
 	cfg.JWTPublicKey = ed25519.PublicKey(pubBytes)
 
-	// post-parse validation
+	// validation after parsing
 	if len(encKey) != 64 {
 		return nil, fmt.Errorf("config: ENCRYPTION_KEY must be 64 hex characters (32 bytes)")
 	}
@@ -114,42 +107,7 @@ func Load() (*Config, error) {
 
 	return cfg, nil
 }
-func GetTrustedProxies(envKey string) []string {
-	val := os.Getenv(envKey)
-	if val == "" {
-		// It is safer to return nil (trust nothing) if the variable is missing
-		return nil
-	}
 
-	var validProxies []string
-	rawProxies := strings.Split(val, ",")
-
-	for _, p := range rawProxies {
-		// 1. Clean up accidental whitespace from Terraform/Docker configs
-		cleanStr := strings.TrimSpace(p)
-
-		if cleanStr == "" {
-			continue
-		}
-
-		// 2. Validate it is a real IP
-		if net.ParseIP(cleanStr) != nil {
-			validProxies = append(validProxies, cleanStr)
-			continue
-		}
-
-		// 3. Validate it is a real CIDR block
-		if _, _, err := net.ParseCIDR(cleanStr); err == nil {
-			validProxies = append(validProxies, cleanStr)
-			continue
-		}
-
-		// 4. Log a loud warning if a bad string sneaks in, but don't crash
-		log.Printf("SECURITY WARNING: Malformed IP/CIDR found in %s: '%s'. Skipping.", envKey, cleanStr)
-	}
-
-	return validProxies
-}
 func requireEnv(key string, errs *[]string) string {
 	v := os.Getenv(key)
 	if v == "" {
