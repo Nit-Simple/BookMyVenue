@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
@@ -24,22 +25,26 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client) *Server {
+	if cfg.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	s := &Server{
 		db:     db,
 		config: cfg,
 		logger: logger,
 		cache:  cache,
 	}
+	r := gin.New()
 
 	s.httpServer = &http.Server{
 		Addr:              cfg.Addr(),
-		Handler:           s.setupRoutes(),
+		Handler:           r,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 	}
-
+	s.setupRoutes(r)
 	return s
 }
 

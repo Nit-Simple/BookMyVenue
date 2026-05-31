@@ -2,13 +2,13 @@ package handler
 
 import (
 	"github.com/Nit-Simple/BookMyVenue/internal/middlewares"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gin-gonic/gin"
 )
 
-func (s *Server) setupRoutes() *chi.Mux {
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
+func (s *Server) setupRoutes(r *gin.Engine) {
+	r.Use(gin.Recovery())
+	r.Use(middlewares.RequestID())
 	r.Use(middlewares.RequestLogger(s.logger))
-	return r
+
+	r.GET("/health", s.healthCheckHandler)
 }

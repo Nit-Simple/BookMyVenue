@@ -2,30 +2,26 @@ package middlewares
 
 import (
 	"log/slog"
-	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/gin-gonic/gin"
 )
 
-func RequestLogger(logger *slog.Logger) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
+func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		ctx := c.Request.Context()
+		reqID := c.GetString("RequestIDKey")
+		logger.InfoContext(ctx, "HTTP Request",
+			slog.String("req_id", reqID),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+			slog.Int("status", c.Writer.Status()),
+			slog.Int("bytes", c.Writer.Size()),
+			slog.Duration("duration", time.Since(start)),
+			slog.String("ip", c.ClientIP()),
+		)
 
-			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-			next.ServeHTTP(ww, r)
-			reqID := middleware.GetReqID(r.Context())
-			logger.InfoContext(r.Context(), "HTTP Request",
-				slog.String("req_id", reqID),
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.Int("status", ww.Status()),
-				slog.Int("bytes", ww.BytesWritten()),
-				slog.Duration("duration", time.Since(start)),
-				slog.String("ip", r.RemoteAddr),
-			)
-
-		})
 	}
 }
