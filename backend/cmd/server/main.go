@@ -8,6 +8,8 @@ import (
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
 	"github.com/Nit-Simple/BookMyVenue/internal/handler"
 	"github.com/Nit-Simple/BookMyVenue/internal/repository"
+	"github.com/Nit-Simple/BookMyVenue/internal/repository/auth"
+	"github.com/Nit-Simple/BookMyVenue/internal/services/authService"
 	"github.com/Nit-Simple/BookMyVenue/pkg/logger"
 )
 
@@ -31,7 +33,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := handler.NewServer(cfg, db, logger, cache)
+	authRepo := auth.NewAuthRepository(db)
+	authSvc := authservice.NewAuthService(authRepo, cfg)
+
+	server := handler.NewServer(cfg, db, logger, cache, authSvc)
 	if err := server.Start(); err != nil {
 		logger.Error("unable to start the server", "err", err)
 		os.Exit(1)

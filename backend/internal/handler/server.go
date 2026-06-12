@@ -11,28 +11,31 @@ import (
 	"syscall"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
+	authservice "github.com/Nit-Simple/BookMyVenue/internal/services/authService"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
-	httpServer *http.Server
-	db         *pgxpool.Pool
-	config     *config.Config
-	logger     *slog.Logger
-	cache      *redis.Client
+	httpServer  *http.Server
+	db          *pgxpool.Pool
+	config      *config.Config
+	logger      *slog.Logger
+	cache       *redis.Client
+	authService *authservice.AuthService
 }
 
-func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client) *Server {
+func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client, authService *authservice.AuthService) *Server {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	s := &Server{
-		db:     db,
-		config: cfg,
-		logger: logger,
-		cache:  cache,
+		db:          db,
+		config:      cfg,
+		logger:      logger,
+		cache:       cache,
+		authService: authService,
 	}
 	r := gin.New()
 

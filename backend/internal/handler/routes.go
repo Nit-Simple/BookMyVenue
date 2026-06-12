@@ -11,4 +11,12 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 	r.Use(middlewares.RequestLogger(s.logger))
 
 	r.GET("/health", s.healthCheckHandler)
+
+	auth := r.Group("/api/v1/auth")
+	{
+		auth.POST("/register", s.registerHandler)
+		auth.POST("/login", s.loginHandler)
+		auth.POST("/refresh", s.refreshHandler)
+		auth.POST("/logout", s.logoutHandler)
+	}
 }
