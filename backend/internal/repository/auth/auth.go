@@ -21,8 +21,6 @@ func NewAuthRepository(db *pgxpool.Pool) domain.AuthRepository {
 	}
 }
 
-// User Registration Repository Methods
-
 // CheckExistByEmail checks if a user exists with the given email.
 func (r *authRepository) CheckExistByEmail(ctx context.Context, email string) (bool, error) {
 	var exists bool
@@ -43,6 +41,17 @@ func (r *authRepository) CheckExistByPhone(ctx context.Context, phone string) (b
 		return false, err
 	}
 	return exists, nil
+}
+
+func (r *authRepository) CheckRoleByID(ctx context.Context, id string) (bool, error) {
+	var IsManager bool
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 and role = 'venue_manager')AS "IsManager";`
+	err := r.DB.QueryRow(ctx, query, id).Scan(IsManager)
+	if err != nil {
+		return false, err
+	}
+	return IsManager, nil
+
 }
 
 // CreateUser inserts a new user record into the users table.
