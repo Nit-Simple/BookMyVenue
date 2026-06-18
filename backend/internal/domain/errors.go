@@ -12,4 +12,6 @@ var (
 	ErrUserNotFound                 = errors.New("user not found")
 	ErrSessionNotFound              = errors.New("session not found")
 	ErrSessionExpired               = errors.New("session expired")
+	ErrVenueIDRequired              = errors.New("venue id is required for update")
+	ErrVenueNotFound                = errors.New("venue not found")
 )

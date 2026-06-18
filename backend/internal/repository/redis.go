@@ -10,7 +10,7 @@ import (
 )
 
 func NewRedisConnection(ctx context.Context, cfg *config.Config) (*redis.Client, error) {
-	conn, err := redis.ParseURL(cfg.RedisUrl)
+	conn, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse redis url: %w", err)
 	}

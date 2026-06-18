@@ -29,7 +29,7 @@ type Config struct {
 	DBMinConns    int32
 	DBMaxConnIdle time.Duration
 	//redis
-	RedisUrl string
+	RedisURL string
 	// App
 	Environment   string
 	EncryptionKey []byte
@@ -51,7 +51,7 @@ func Load() (*Config, error) {
 	// required fields — fail if missing
 	cfg.DatabaseURL = requireEnv("DATABASE_URL", &errs)
 	encKey := requireEnv("ENCRYPTION_KEY", &errs)
-	cfg.RedisUrl = requireEnv("REDIS_URL", &errs)
+	cfg.RedisURL = requireEnv("REDIS_URL", &errs)
 
 	// optional with defaults
 	cfg.Host = getEnv("HOST", "0.0.0.0")

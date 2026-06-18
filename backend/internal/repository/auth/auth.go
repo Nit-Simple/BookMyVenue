@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
+	"github.com/Nit-Simple/BookMyVenue/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -62,8 +63,8 @@ func (r *authRepository) CreateUser(ctx context.Context, user *domain.UserCreate
 		RETURNING id, email, password, phone, role, created_at, updated_at
 	`
 
-	nullPhone := strToNullString(user.Phone)
-	nullPassword := strToNullString(user.Password)
+	nullPhone := repository.StrToNullString(user.Phone)
+	nullPassword := repository.StrToNullString(user.Password)
 
 	var userDB domain.UserDB
 	var scannedPhone sql.NullString
@@ -82,8 +83,8 @@ func (r *authRepository) CreateUser(ctx context.Context, user *domain.UserCreate
 		return nil, err
 	}
 
-	userDB.HashedPassword = nullStringToStr(scannedPassword)
-	userDB.Phone = nullStringToStr(scannedPhone)
+	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
+	userDB.Phone = repository.NullStringToStr(scannedPhone)
 
 	return &userDB, nil
 }
@@ -117,8 +118,8 @@ func (r *authRepository) FindByID(ctx context.Context, id string) (*domain.UserD
 		return nil, err
 	}
 
-	userDB.HashedPassword = nullStringToStr(scannedPassword)
-	userDB.Phone = nullStringToStr(scannedPhone)
+	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
+	userDB.Phone = repository.NullStringToStr(scannedPhone)
 
 	return &userDB, nil
 }
@@ -150,8 +151,8 @@ func (r *authRepository) FindUserByEmail(ctx context.Context, email string) (*do
 		return nil, err
 	}
 
-	userDB.HashedPassword = nullStringToStr(scannedPassword)
-	userDB.Phone = nullStringToStr(scannedPhone)
+	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
+	userDB.Phone = repository.NullStringToStr(scannedPhone)
 
 	return &userDB, nil
 }
@@ -206,8 +207,8 @@ func (r *authRepository) FindSessionByHash(ctx context.Context, refreshTokenHash
 		return nil, err
 	}
 
-	s.IPAddress = nullStringToStr(scannedIP)
-	s.DeviceInfo = nullBytesToBytes(s.DeviceInfo)
+	s.IPAddress = repository.NullStringToStr(scannedIP)
+	s.DeviceInfo = repository.NullBytesToBytes(s.DeviceInfo)
 
 	return &s, nil
 }
@@ -245,28 +246,4 @@ func (r *authRepository) DeleteSession(ctx context.Context, requestTokenHash str
 	return nil
 }
 
-// Helper functions for database scanning
 
-// nullStringToStr converts sql.NullString to string.
-func nullStringToStr(ns sql.NullString) string {
-	if ns.Valid {
-		return ns.String
-	}
-	return ""
-}
-
-// strToNullString converts string to sql.NullString.
-func strToNullString(s string) sql.NullString {
-	return sql.NullString{
-		String: s,
-		Valid:  s != "",
-	}
-}
-
-// nullBytesToBytes checks if bytes are nil and returns empty bytes instead.
-func nullBytesToBytes(b []byte) []byte {
-	if b == nil {
-		return []byte{}
-	}
-	return b
-}
