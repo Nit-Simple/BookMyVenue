@@ -28,6 +28,17 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// registerHandler handles user registration.
+// @Summary      Register a new user
+// @Description  Register a new user in the system.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body RegisterRequest true "Registration Info"
+// @Success      201  {object}  domain.UserDB
+// @Failure      400  {object}  map[string]string
+// @Failure      409  {object}  map[string]string
+// @Router       /api/v1/auth/register [post]
 func (s *Server) registerHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req RegisterRequest
@@ -56,6 +67,17 @@ func (s *Server) registerHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, userDB)
 }
 
+// loginHandler handles user login.
+// @Summary      Login user
+// @Description  Authenticate user with email and password to receive tokens.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body LoginRequest true "Login Credentials"
+// @Success      200  {object}  map[string]any
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Router       /api/v1/auth/login [post]
 func (s *Server) loginHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req LoginRequest
@@ -80,6 +102,17 @@ func (s *Server) loginHandler(c *gin.Context) {
 	})
 }
 
+// refreshHandler refreshes the JWT access token.
+// @Summary      Refresh token
+// @Description  Refresh expired access token using the refresh token.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body RefreshRequest false "Refresh Token (can also be passed as Cookie)"
+// @Success      200  {object}  map[string]any
+// @Failure      400  {object}  map[string]string
+// @Failure      401  {object}  map[string]string
+// @Router       /api/v1/auth/refresh [post]
 func (s *Server) refreshHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req RefreshRequest
@@ -111,6 +144,17 @@ func (s *Server) refreshHandler(c *gin.Context) {
 	})
 }
 
+// logoutHandler invalidates the refresh token and logs out the user.
+// @Summary      Logout user
+// @Description  Log out the current user and invalidate their session.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body LogoutRequest false "Logout Request (can also be passed as Cookie)"
+// @Success      200  {object}  map[string]string
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /api/v1/auth/logout [post]
 func (s *Server) logoutHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req LogoutRequest

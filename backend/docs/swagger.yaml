@@ -1,0 +1,737 @@
+basePath: /
+definitions:
+  domain.UserDB:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      hashedPassword:
+        type: string
+      id:
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handler.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handler.LogoutRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handler.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  handler.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        maxLength: 20
+        minLength: 6
+        type: string
+      phone:
+        type: string
+      role:
+        type: string
+    required:
+    - email
+    - password
+    - phone
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a venue booking service API server.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: BookMyVenue API
+  version: "1.0"
+paths:
+  /api/v1/admin/venues:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all venues for admin review with optional filters
+      parameters:
+      - description: State filter
+        in: query
+        name: state
+        type: string
+      - description: District filter
+        in: query
+        name: district
+        type: string
+      - description: Status filter
+        in: query
+        name: onboarding_status
+        type: string
+      - description: Owner filter
+        in: query
+        name: owner_id
+        type: string
+      - description: Limit filter
+        in: query
+        name: limit
+        type: integer
+      - description: Offset filter
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List admin venues
+      tags:
+      - admin
+  /api/v1/admin/venues/{venue_id}/approve:
+    patch:
+      consumes:
+      - application/json
+      description: Approve a venue application (Admin only)
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      - description: Notes
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve venue
+      tags:
+      - admin
+  /api/v1/admin/venues/{venue_id}/reject:
+    patch:
+      consumes:
+      - application/json
+      description: Reject a venue application (Admin only)
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      - description: Notes
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject venue
+      tags:
+      - admin
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password to receive tokens.
+      parameters:
+      - description: Login Credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login user
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Log out the current user and invalidate their session.
+      parameters:
+      - description: Logout Request (can also be passed as Cookie)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/handler.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout user
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh expired access token using the refresh token.
+      parameters:
+      - description: Refresh Token (can also be passed as Cookie)
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/handler.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh token
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user in the system.
+      parameters:
+      - description: Registration Info
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.UserDB'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /api/v1/bookings:
+    get:
+      consumes:
+      - application/json
+      description: Get list of bookings of the authenticated user
+      parameters:
+      - description: Status filter
+        in: query
+        name: status
+        type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List bookings
+      tags:
+      - bookings
+    post:
+      consumes:
+      - application/json
+      description: Book a venue with required date and notes
+      parameters:
+      - description: Idempotency key
+        in: header
+        name: Idempotency-Key
+        required: true
+        type: string
+      - description: Booking parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create booking
+      tags:
+      - bookings
+  /api/v1/bookings/{booking_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Cancel an active booking by its ID
+      parameters:
+      - description: Booking ID
+        in: path
+        name: booking_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel booking
+      tags:
+      - bookings
+    get:
+      consumes:
+      - application/json
+      description: Get details of a specific booking by its ID
+      parameters:
+      - description: Booking ID
+        in: path
+        name: booking_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get booking by ID
+      tags:
+      - bookings
+  /api/v1/manager/venues:
+    get:
+      consumes:
+      - application/json
+      description: Get list of venues owned/managed by the current manager
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List manager venues
+      tags:
+      - manager
+    post:
+      consumes:
+      - application/json
+      description: Create a new venue application (Manager only)
+      parameters:
+      - description: Venue registration body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create manager venue
+      tags:
+      - manager
+  /api/v1/manager/venues/{venue_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get full specifications of manager's own venue by its ID
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get manager venue details
+      tags:
+      - manager
+    patch:
+      consumes:
+      - application/json
+      description: Update details of a manager's venue
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      - description: Venue update body
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update manager venue
+      tags:
+      - manager
+  /api/v1/manager/venues/{venue_id}/pricing:
+    get:
+      consumes:
+      - application/json
+      description: Get pricing tiers and schedules of a manager's venue
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Get venue pricing list
+      tags:
+      - manager
+    post:
+      consumes:
+      - application/json
+      description: Create a new pricing tier for a manager's venue
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      - description: Pricing data
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create venue pricing
+      tags:
+      - manager
+  /api/v1/manager/venues/{venue_id}/pricing/{pricing_id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update an existing pricing tier of a manager's venue
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      - description: Pricing ID
+        in: path
+        name: pricing_id
+        required: true
+        type: string
+      - description: Pricing update data
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update venue pricing
+      tags:
+      - manager
+  /api/v1/venues:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of approved venues with optional filters
+      parameters:
+      - description: State filter
+        in: query
+        name: state
+        type: string
+      - description: District filter
+        in: query
+        name: district
+        type: string
+      - description: City filter
+        in: query
+        name: city
+        type: string
+      - description: Venue type filter
+        in: query
+        name: venue_type
+        type: string
+      - description: Is air conditioned filter
+        in: query
+        name: is_air_conditioned
+        type: boolean
+      - description: Min seating capacity filter
+        in: query
+        name: min_seating_capacity
+        type: integer
+      - description: Limit filter
+        in: query
+        name: limit
+        type: integer
+      - description: Offset filter
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+      summary: List approved venues
+      tags:
+      - public-venues
+  /api/v1/venues/{venue_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get full specifications of an approved venue by its ID
+      parameters:
+      - description: Venue ID
+        in: path
+        name: venue_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get venue details by ID
+      tags:
+      - public-venues
+  /api/v1/venues/applications:
+    post:
+      consumes:
+      - application/json
+      description: Submit a venue application for approval
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit venue application (old)
+      tags:
+      - manager
+  /health:
+    get:
+      description: Check the health status of database and cache dependencies.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - health
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

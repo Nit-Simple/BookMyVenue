@@ -6,6 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// healthCheckHandler handles health check requests.
+// @Summary      Health check
+// @Description  Check the health status of database and cache dependencies.
+// @Tags         health
+// @Produce      json
+// @Success      200  {object}  map[string]string
+// @Failure      503  {object}  map[string]string
+// @Router       /health [get]
 func (s *Server) healthCheckHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	dbStatus := "up"
