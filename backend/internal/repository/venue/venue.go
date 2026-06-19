@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
 	"github.com/google/uuid"
@@ -229,9 +228,9 @@ func (v *venueRepository) UpdateVenue(ctx context.Context, venue *domain.Venue) 
 	return &retVenue, nil
 }
 
-func (v *venueRepository) UpdateVenueStatus(ctx context.Context, venueID *uuid.UUID, adminID *uuid.UUID, status domain.OnboardingStatus, notes string) (*uuid.UUID, *uuid.UUID, string, time.Time, error) {
-	if venueID == nil {
-		return nil, nil, "", time.Time{}, domain.ErrVenueIDRequired
+func (v *venueRepository) UpdateVenueStatus(ctx context.Context, update *domain.VenueStatusUpdate) (*domain.VenueStatusResult, error) {
+	if update.VenueID == uuid.Nil {
+		return nil, domain.ErrVenueIDRequired
 	}
 
 	query := `
@@ -242,23 +241,29 @@ func (v *venueRepository) UpdateVenueStatus(ctx context.Context, venueID *uuid.U
 			admin_notes = $3,
 			updated_at = NOW()
 		WHERE venue_id = $4
-		RETURNING reviewed_by, admin_notes, updated_at
+		RETURNING venue_id, reviewed_by, admin_notes, updated_at
 	`
 
-	var scannedAdminID *uuid.UUID
+	var result domain.VenueStatusResult
+	var scannedReviewedBy *uuid.UUID
 	var scannedNotes sql.NullString
-	var updatedAt time.Time
 
-	err := v.DB.QueryRow(ctx, query, status, adminID, notes, venueID).Scan(
-		&scannedAdminID,
+	err := v.DB.QueryRow(ctx, query, update.Status, update.AdminID, update.Notes, update.VenueID).Scan(
+		&result.VenueID,
+		&scannedReviewedBy,
 		&scannedNotes,
-		&updatedAt,
+		&result.UpdatedAt,
 	)
 	if err != nil {
-		return nil, nil, "", time.Time{}, err
+		return nil, err
 	}
 
-	return venueID, scannedAdminID, scannedNotes.String, updatedAt, nil
+	if scannedReviewedBy != nil {
+		result.ReviewedBy = *scannedReviewedBy
+	}
+	result.AdminNotes = scannedNotes.String
+
+	return &result, nil
 }
 
 func (v *venueRepository) GetVenueByID(ctx context.Context, venueID uuid.UUID) (*domain.Venue, error) {
@@ -479,78 +484,4 @@ func (v *venueRepository) ListVenueByFilter(ctx context.Context, filter *domain.
 
 	return venues, nil
 }
-func (v *venueRepository) ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]*domain.Venue, error) {
-	query := `
-		SELECT 
-			venue_id, owner_id, onboarding_status, reviewed_by, admin_notes, 
-			venue_name, addressline_1, addressline_2, phone, phone_private, email, 
-			city, district, state, postal_code, country_code, 
-			ST_Y(location::geometry)::text, ST_X(location::geometry)::text, 
-			seating_capacity, min_booking_duration, relaxation_period, 
-			opening_period::text, closing_period::text, is_air_conditioned, venue_type, 
-			created_at, updated_at
-		FROM venue
-		WHERE owner_id = $1
-	`
 
-	rows, err := v.DB.Query(ctx, query, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	venues := make([]*domain.Venue, 0)
-	for rows.Next() {
-		var retVenue domain.Venue
-		var latVal sql.NullString
-		var lonVal sql.NullString
-
-		err := rows.Scan(
-			&retVenue.VenueID,
-			&retVenue.OwnerID,
-			&retVenue.OnboardingStatus,
-			&retVenue.ReviewedBy,
-			&retVenue.AdminNotes,
-			&retVenue.VenueName,
-			&retVenue.AddressLine1,
-			&retVenue.AddressLine2,
-			&retVenue.Phone,
-			&retVenue.PhonePrivate,
-			&retVenue.Email,
-			&retVenue.City,
-			&retVenue.District,
-			&retVenue.State,
-			&retVenue.PostalCode,
-			&retVenue.CountryCode,
-			&latVal,
-			&lonVal,
-			&retVenue.SeatingCapacity,
-			&retVenue.MinBookingDuration,
-			&retVenue.RelaxationPeriod,
-			&retVenue.OpeningPeriod,
-			&retVenue.ClosingPeriod,
-			&retVenue.IsAirConditioned,
-			&retVenue.VenueType,
-			&retVenue.CreatedAt,
-			&retVenue.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if latVal.Valid && lonVal.Valid {
-			retVenue.Location = &domain.Location{
-				Latitude:  latVal.String,
-				Longitude: lonVal.String,
-			}
-		}
-
-		venues = append(venues, &retVenue)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return venues, nil
-}

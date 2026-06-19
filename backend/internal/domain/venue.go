@@ -18,10 +18,9 @@ const (
 type VenueRepository interface {
 	CreateVenue(ctx context.Context, venue *Venue) (*Venue, error)
 	UpdateVenue(ctx context.Context, venue *Venue) (*Venue, error)
-	UpdateVenueStatus(ctx context.Context, venueID *uuid.UUID, adminID *uuid.UUID, status OnboardingStatus, notes string) (*uuid.UUID, *uuid.UUID, string, time.Time, error)
+	UpdateVenueStatus(ctx context.Context, update *VenueStatusUpdate) (*VenueStatusResult, error)
 	GetVenueByID(ctx context.Context, venueID uuid.UUID) (*Venue, error)
 	ListVenueByFilter(ctx context.Context, filter *VenueFilter) ([]*Venue, error)
-	ListByOwner(ctx context.Context, ownerID uuid.UUID) ([]*Venue, error)
 }
 
 type Location struct {
@@ -79,4 +78,18 @@ type VenueFilter struct {
 	SortOrder          *string
 	Limit              int
 	Offset             int
+}
+
+type VenueStatusUpdate struct {
+	VenueID    uuid.UUID
+	AdminID    uuid.UUID
+	Status     OnboardingStatus
+	Notes      string
+}
+
+type VenueStatusResult struct {
+	VenueID    uuid.UUID
+	ReviewedBy uuid.UUID
+	AdminNotes string
+	UpdatedAt  time.Time
 }
