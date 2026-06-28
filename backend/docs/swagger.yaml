@@ -54,7 +54,7 @@ definitions:
     - password
     - phone
     type: object
-host: localhost:8080
+host: localhost:8081
 info:
   contact:
     email: support@swagger.io

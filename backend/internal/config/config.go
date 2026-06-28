@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,8 +32,9 @@ type Config struct {
 	//redis
 	RedisURL string
 	// App
-	Environment   string
-	EncryptionKey []byte
+	Environment    string
+	EncryptionKey  []byte
+	AllowedOrigins []string
 
 	JWTPrivateKey ed25519.PrivateKey
 	JWTPublicKey  ed25519.PublicKey
@@ -55,8 +57,9 @@ func Load() (*Config, error) {
 
 	// optional with defaults
 	cfg.Host = getEnv("HOST", "0.0.0.0")
-	cfg.Port = getEnv("PORT", "8080")
+	cfg.Port = getEnv("PORT", "8081")
 	cfg.Environment = getEnv("ENVIRONMENT", "development")
+	cfg.AllowedOrigins = getCSV("ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"})
 
 	// typed parsing
 	cfg.ReadTimeout = getDuration("READ_TIMEOUT", 5*time.Second)
@@ -121,6 +124,21 @@ func getEnv(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func getCSV(key string, defaultVal []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func getInt(key string, defaultVal int) int {

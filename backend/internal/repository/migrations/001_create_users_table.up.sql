@@ -26,4 +26,3 @@ $$ language 'plpgsql';
 create trigger set_users_updated_at
 before update on users for each row
 execute function update_updated_at_coloums();
-    

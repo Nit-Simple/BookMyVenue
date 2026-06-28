@@ -27,7 +27,7 @@ import (
 // @license.name  Apache 2.0
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
-// @host      localhost:8080
+// @host      localhost:8081
 // @BasePath  /
 
 // @securityDefinitions.apikey BearerAuth
@@ -45,6 +45,10 @@ func main() {
 	db, err := repository.Connect(context.Background(), cfg)
 	if err != nil {
 		logger.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	if err := repository.RunMigrations(cfg.DatabaseURL); err != nil {
+		logger.Error("failed to run database migrations", "err", err)
 		os.Exit(1)
 	}
 	cache, err := repository.NewRedisConnection(ctx, cfg)
