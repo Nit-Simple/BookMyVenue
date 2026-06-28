@@ -50,6 +50,10 @@ func (a *AuthService) RegisterUser(ctx context.Context, user *domain.UserCreate)
 		user.ID = uuid.New().String()
 	}
 
+	if user.Role == "" {
+		user.Role = domain.User
+	}
+
 	userDB, err := a.repo.CreateUser(ctx, user)
 	if err != nil {
 		return nil, err

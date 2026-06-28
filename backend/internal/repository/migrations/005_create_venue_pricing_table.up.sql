@@ -1,4 +1,4 @@
-CREATE EXTENTION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 CREATE TABLE venue_pricing (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -19,6 +19,6 @@ CREATE TABLE venue_pricing (
     ) WHERE (is_active = true)
 );
 
-CREATE INDEX idx_venue_pricing_lookup 
+CREATE INDEX idx_venue_pricing_lookup
     ON venue_pricing(venue_id, is_weekend, is_active)
     WHERE is_active = true;

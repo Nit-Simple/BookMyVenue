@@ -10,6 +10,7 @@ import (
 
 func (s *Server) setupRoutes(r *gin.Engine) {
 	r.Use(gin.Recovery())
+	r.Use(middlewares.CORS(s.config.AllowedOrigins))
 	r.Use(middlewares.RequestID())
 	r.Use(middlewares.RequestLogger(s.logger))
 
