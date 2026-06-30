@@ -12,30 +12,39 @@ import (
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
 	authservice "github.com/Nit-Simple/BookMyVenue/internal/services/authService"
+	mediaService "github.com/Nit-Simple/BookMyVenue/internal/services/mediaService"
+	razorpayService "github.com/Nit-Simple/BookMyVenue/internal/services/razorpayService"
+	venueservice "github.com/Nit-Simple/BookMyVenue/internal/services/venueService"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
-	httpServer  *http.Server
-	db          *pgxpool.Pool
-	config      *config.Config
-	logger      *slog.Logger
-	cache       *redis.Client
-	authService *authservice.AuthService
+	httpServer      *http.Server
+	db              *pgxpool.Pool
+	config          *config.Config
+	logger          *slog.Logger
+	cache           *redis.Client
+	authService     *authservice.AuthService
+	venueService    *venueservice.VenueService
+	razorpayService *razorpayService.RazorpayService
+	mediaService    *mediaService.MediaService
 }
 
-func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client, authService *authservice.AuthService) *Server {
+func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client, authService *authservice.AuthService, venueService *venueservice.VenueService, razorpayService *razorpayService.RazorpayService, mediaService *mediaService.MediaService) *Server {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	s := &Server{
-		db:          db,
-		config:      cfg,
-		logger:      logger,
-		cache:       cache,
-		authService: authService,
+		db:              db,
+		config:          cfg,
+		logger:          logger,
+		cache:           cache,
+		authService:     authService,
+		venueService:    venueService,
+		razorpayService: razorpayService,
+		mediaService:    mediaService,
 	}
 	r := gin.New()
 

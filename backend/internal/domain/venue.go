@@ -39,8 +39,8 @@ type Venue struct {
 
 	// General Information
 	VenueName    string  `json:"venue_name" binding:"required"`
-	AddressLine1 string  `json:"address_line_1" binding:"required"`
-	AddressLine2 *string `json:"address_line_2,omitempty"`
+	Addressline1 string  `json:"addressline_1" binding:"required"`
+	Addressline2 *string `json:"addressline_2,omitempty"`
 	Phone        string  `json:"phone" binding:"required"`
 	PhonePrivate *string `json:"phone_private,omitempty"` // Kept hidden/optional
 	Email        string  `json:"email" binding:"required,email"`

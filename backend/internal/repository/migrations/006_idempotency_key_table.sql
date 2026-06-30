@@ -8,7 +8,7 @@ CREATE TABLE idempotency_keys (
     response_body   JSONB,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at      TIMESTAMPTZ NOT NULL,
-    status         idempotency_status NOT NULL DEFAULT 'PENDING',
+    status         idempotency_status NOT NULL DEFAULT 'PENDING'
 );
 
 

@@ -40,6 +40,15 @@ type Config struct {
 	JWTPublicKey  ed25519.PublicKey
 	JWTExpiry     time.Duration
 	RefreshExpiry time.Duration
+
+	// Cloudinary
+	CloudinaryCloudName string
+	CloudinaryAPIKey    string
+	CloudinaryAPISecret string
+
+	// Razorpay
+	RazorpayKeyID     string
+	RazorpayKeySecret string
 }
 
 func (c *Config) Addr() string {
@@ -71,6 +80,15 @@ func Load() (*Config, error) {
 	cfg.DBMinConns = int32(getInt("DB_MIN_CONNS", 5))
 	cfg.DBMaxConnIdle = getDuration("DB_MAX_CONN_IDLE", 30*time.Minute)
 	cfg.ReadHeaderTimeout = getDuration("READ_HEADER_TIMEOUT", 2*time.Second)
+
+	// Cloudinary (all required)
+	cfg.CloudinaryCloudName = requireEnv("CLOUDINARY_API_NAME", &errs)
+	cfg.CloudinaryAPIKey = requireEnv("CLOUDINARY_API_KEY", &errs)
+	cfg.CloudinaryAPISecret = requireEnv("CLOUDINARY_API_SECRET", &errs)
+
+	// Razorpay (all required)
+	cfg.RazorpayKeyID = requireEnv("RAZORPAY_TEST_API_KEY", &errs)
+	cfg.RazorpayKeySecret = requireEnv("RAZORPAY_TEST_API_SECRET", &errs)
 
 	cfg.JWTExpiry = getDuration("JWT_EXPIRY", 15*time.Minute)
 	cfg.RefreshExpiry = getDuration("REFRESH_EXPIRY", 7*24*time.Hour)

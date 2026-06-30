@@ -1,35 +1,47 @@
 package domain
 
 import (
+	"context"
 	"encoding/json"
 	"time"
-
-	"context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type PaymentRepository interface {
-	Create(ctx context.Context, booking *Booking) error
+	// Create inserts a new payment record.
+	Create(ctx context.Context, payment *Payment) error
 
-	// GetByID fetches a booking by its ID.
-	GetByID(ctx context.Context, id uuid.UUID) (*Booking, error)
+	// GetByID fetches a payment by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*Payment, error)
 
-	// GetByUser fetches bookings for a user (paginated, with status filter).
-	GetByUser(ctx context.Context, userID uuid.UUID, statuses []*BookingStatus, limit, offset int) ([]*Booking, int64, error)
+	// GetByBookingID fetches the payment for a specific booking.
+	GetByBookingID(ctx context.Context, bookingID uuid.UUID) (*Payment, error)
 
-	// GetByVenueAndDateRange fetches bookings for a venue within a date range.
-	GetByVenueAndDateRange(ctx context.Context, venueID uuid.UUID, startDate, endDate time.Time) ([]*Booking, error)
+	// GetByOrderID fetches a payment by Razorpay order_id.
+	GetByOrderID(ctx context.Context, orderID string) (*Payment, error)
 
-	// GetVenueDailyBookings fetches bookings for a specific day.
-	GetVenueDailyBookings(ctx context.Context, venueID uuid.UUID, date time.Time) ([]*Booking, error)
+	// UpdateOrderID updates the razorpay_order_id on a payment.
+	UpdateOrderID(ctx context.Context, id uuid.UUID, orderID string) (*UpdatePaymentResult, error)
 
-	// UpdateStatus updates the status of a booking.
-	UpdateStatus(ctx context.Context, id uuid.UUID, status *BookingStatus, reason string, actorID uuid.UUID) error
+	// UpdateToCaptured updates a payment to CAPTURED with webhook data.
+	UpdateToCaptured(ctx context.Context, orderID, paymentID string, payload json.RawMessage) error
 
-	// ConfirmBooking updates a booking to CONFIRMED and sets payment_id.
-	ConfirmBooking(ctx context.Context, id uuid.UUID, paymentID uuid.UUID) error
+	// UpdateToFailed updates a payment to FAILED.
+	UpdateToFailed(ctx context.Context, orderID string, reason string) (*UpdatePaymentResult, error)
+
+	// UpdateRefund updates a payment with refund details.
+	UpdateRefund(ctx context.Context, id uuid.UUID, refundID string, refundAmount int32, status PaymentStatus) (*UpdatePaymentResult, error)
+
+	// GetPaymentMetrics returns aggregated payment statistics.
+	GetPaymentMetrics(ctx context.Context, startDate, endDate time.Time) (*PaymentMetrics, error)
+}
+
+// UpdatePaymentResult is returned by payment update operations.
+type UpdatePaymentResult struct {
+	Updated bool
+	Payment *Payment
 }
 
 type PaymentStatus string
@@ -88,6 +100,15 @@ type Payment struct {
 	WebhookReceivedAt pgtype.Timestamptz `db:"webhook_received_at" json:"-"`
 	CreatedAt         time.Time          `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time          `db:"updated_at" json:"updated_at"`
+}
+
+type PaymentMetrics struct {
+	TotalRevenue       int64 `json:"total_revenue"`
+	TotalRefunds       int64 `json:"total_refunds"`
+	NetRevenue         int64 `json:"net_revenue"`
+	SuccessfulPayments int64 `json:"successful_payments"`
+	FailedPayments     int64 `json:"failed_payments"`
+	RefundedPayments   int64 `json:"refunded_payments"`
 }
 
 // Helper Methods

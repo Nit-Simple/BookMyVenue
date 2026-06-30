@@ -16,7 +16,7 @@ type venueRepository struct {
 	DB *pgxpool.Pool
 }
 
-func newVenueRepository(db *pgxpool.Pool) domain.VenueRepository {
+func NewVenueRepository(db *pgxpool.Pool) domain.VenueRepository {
 	return &venueRepository{
 		DB: db,
 	}
@@ -54,8 +54,8 @@ func (v *venueRepository) CreateVenue(ctx context.Context, venue *domain.Venue) 
 	err := v.DB.QueryRow(ctx, query,
 		venue.OwnerID,
 		venue.VenueName,
-		venue.AddressLine1,
-		venue.AddressLine2,
+		venue.Addressline1,
+		venue.Addressline2,
 		venue.Phone,
 		venue.PhonePrivate,
 		venue.Email,
@@ -79,8 +79,8 @@ func (v *venueRepository) CreateVenue(ctx context.Context, venue *domain.Venue) 
 		&retVenue.ReviewedBy,
 		&retVenue.AdminNotes,
 		&retVenue.VenueName,
-		&retVenue.AddressLine1,
-		&retVenue.AddressLine2,
+		&retVenue.Addressline1,
+		&retVenue.Addressline2,
 		&retVenue.Phone,
 		&retVenue.PhonePrivate,
 		&retVenue.Email,
@@ -166,8 +166,8 @@ func (v *venueRepository) UpdateVenue(ctx context.Context, venue *domain.Venue) 
 
 	err := v.DB.QueryRow(ctx, query,
 		venue.VenueName,
-		venue.AddressLine1,
-		venue.AddressLine2,
+		venue.Addressline1,
+		venue.Addressline2,
 		venue.Phone,
 		venue.PhonePrivate,
 		venue.Email,
@@ -192,8 +192,8 @@ func (v *venueRepository) UpdateVenue(ctx context.Context, venue *domain.Venue) 
 		&retVenue.ReviewedBy,
 		&retVenue.AdminNotes,
 		&retVenue.VenueName,
-		&retVenue.AddressLine1,
-		&retVenue.AddressLine2,
+		&retVenue.Addressline1,
+		&retVenue.Addressline2,
 		&retVenue.Phone,
 		&retVenue.PhonePrivate,
 		&retVenue.Email,
@@ -289,8 +289,8 @@ func (v *venueRepository) GetVenueByID(ctx context.Context, venueID uuid.UUID) (
 		&retVenue.OwnerID,
 		&retVenue.OnboardingStatus,
 		&retVenue.VenueName,
-		&retVenue.AddressLine1,
-		&retVenue.AddressLine2,
+		&retVenue.Addressline1,
+		&retVenue.Addressline2,
 		&retVenue.Phone,
 		&retVenue.PhonePrivate,
 		&retVenue.Email,
@@ -338,11 +338,18 @@ func (v *venueRepository) ListVenueByFilter(ctx context.Context, filter *domain.
 			opening_period::text, closing_period::text, is_air_conditioned, venue_type, 
 			created_at, updated_at
 		FROM venue
-		WHERE onboarding_status = 'APPROVED'::venue_onboarding_status
 	`
 
 	args := make([]any, 0)
 	argCount := 1
+
+	if filter.Status != nil && *filter.Status != "" {
+		query += fmt.Sprintf("WHERE onboarding_status = $%d::venue_onboarding_status", argCount)
+		args = append(args, *filter.Status)
+		argCount++
+	} else {
+		query += "WHERE onboarding_status = 'APPROVED'::venue_onboarding_status"
+	}
 
 	if filter.State != nil && *filter.State != "" {
 		query += fmt.Sprintf(" AND state = $%d", argCount)
@@ -442,8 +449,8 @@ func (v *venueRepository) ListVenueByFilter(ctx context.Context, filter *domain.
 			&retVenue.ReviewedBy,
 			&retVenue.AdminNotes,
 			&retVenue.VenueName,
-			&retVenue.AddressLine1,
-			&retVenue.AddressLine2,
+			&retVenue.Addressline1,
+			&retVenue.Addressline2,
 			&retVenue.Phone,
 			&retVenue.PhonePrivate,
 			&retVenue.Email,

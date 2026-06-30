@@ -1,433 +1,442 @@
 package handler
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/Nit-Simple/BookMyVenue/internal/domain"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-// submitVenueApplicationHandler handles requests by venue managers to register a venue
-// @Summary      Submit venue application (old)
-// @Description  Submit a venue application for approval
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  map[string]string
-// @Router       /api/v1/venues/applications [post]
-// @Security     BearerAuth
 func (s *Server) submitVenueApplicationHandler(c *gin.Context) {
-	// TODO: Implement the venue application submission logic
-	c.JSON(http.StatusOK, gin.H{
-		"message": "submitVenueApplicationHandler not implemented yet",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "use POST /api/v1/manager/venues instead"})
 }
 
-// approveVenueHandler handles admin approval of a venue
-// @Summary      Approve venue
-// @Description  Approve a venue application (Admin only)
-// @Tags         admin
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Param        request body map[string]string true "Notes"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/admin/venues/{venue_id}/approve [patch]
-// @Security     BearerAuth
-func (s *Server) approveVenueHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusOK, gin.H{
-		"venue_id":          venueID,
-		"onboarding_status": "APPROVED",
-		"reviewed_by":       "admin-uuid-123456",
-		"admin_notes":       "Approved after reviewing document certifications.",
-		"updated_at":        "2026-06-19T20:43:00Z",
-	})
-}
-
-// rejectVenueHandler handles admin rejection of a venue
-// @Summary      Reject venue
-// @Description  Reject a venue application (Admin only)
-// @Tags         admin
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Param        request body map[string]string true "Notes"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/admin/venues/{venue_id}/reject [patch]
-// @Security     BearerAuth
-func (s *Server) rejectVenueHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusOK, gin.H{
-		"venue_id":          venueID,
-		"onboarding_status": "REJECTED",
-		"reviewed_by":       "admin-uuid-123456",
-		"admin_notes":       "Rejected: Missing fire safety certificate.",
-		"updated_at":        "2026-06-19T20:43:00Z",
-	})
-}
-
-// listVenuesHandler handles requests to search/list approved venues
-// @Summary      List approved venues
-// @Description  Get a list of approved venues with optional filters
-// @Tags         public-venues
-// @Accept       json
-// @Produce      json
-// @Param        state query string false "State filter"
-// @Param        district query string false "District filter"
-// @Param        city query string false "City filter"
-// @Param        venue_type query string false "Venue type filter"
-// @Param        is_air_conditioned query boolean false "Is air conditioned filter"
-// @Param        min_seating_capacity query integer false "Min seating capacity filter"
-// @Param        limit query integer false "Limit filter"
-// @Param        offset query integer false "Offset filter"
-// @Success      200  {array}  map[string]any
-// @Router       /api/v1/venues [get]
-func (s *Server) listVenuesHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, []gin.H{
-		{
-			"venue_id":           "123e4567-e89b-12d3-a456-426614174000",
-			"venue_name":         "Grand Palace",
-			"city":               "New York",
-			"district":           "Manhattan",
-			"state":              "New York",
-			"venue_type":         "Auditorium",
-			"seating_capacity":   500,
-			"is_air_conditioned": true,
-			"opening_period":     "09:00",
-			"closing_period":     "22:00",
-		},
-	})
-}
-
-// getVenueByIDHandler handles requests to view full venue details
-// @Summary      Get venue details by ID
-// @Description  Get full specifications of an approved venue by its ID
-// @Tags         public-venues
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/venues/{venue_id} [get]
-func (s *Server) getVenueByIDHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusOK, gin.H{
-		"venue_id":             venueID,
-		"venue_name":           "Grand Palace",
-		"address_line_1":       "123 Broadway",
-		"address_line_2":       "Suite 100",
-		"phone":                "+1234567890",
-		"email":                "info@grandpalace.com",
-		"city":                 "New York",
-		"district":             "Manhattan",
-		"state":                "New York",
-		"postal_code":          "10001",
-		"country_code":         "US",
-		"seating_capacity":     500,
-		"min_booking_duration": "2h",
-		"opening_period":       "09:00",
-		"closing_period":       "22:00",
-		"relaxation_period":    "30m",
-		"is_air_conditioned":   true,
-		"venue_type":           "Auditorium",
-		"onboarding_status":    "APPROVED",
-	})
-}
-
-// createManagerVenueHandler handles venue creation by a manager
-// @Summary      Create manager venue
-// @Description  Create a new venue application (Manager only)
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        request body map[string]any true "Venue registration body"
-// @Success      201  {object}  map[string]any
-// @Router       /api/v1/manager/venues [post]
-// @Security     BearerAuth
 func (s *Server) createManagerVenueHandler(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{
-		"venue_id":          "123e4567-e89b-12d3-a456-426614174000",
-		"onboarding_status": "PENDING_APPROVAL",
-	})
+	ctx := c.Request.Context()
+	userIDStr, _ := c.Get("userID")
+
+	var req domain.CreateVenueRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.VenueName == "" || req.Addressline1 == "" || req.Phone == "" || req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "venue_name, addressline_1, phone, email are required"})
+		return
+	}
+	if len(req.Media) < 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least 3 images are required"})
+		return
+	}
+
+	minDur, err := time.ParseDuration(req.MinBookingDuration)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid min_booking_duration"})
+		return
+	}
+	relaxDur, err := time.ParseDuration(req.RelaxationPeriod)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid relaxation_period"})
+		return
+	}
+
+	ownerUUID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	venue := &domain.Venue{
+		VenueName:         req.VenueName,
+		Addressline1:      req.Addressline1,
+		Addressline2:      req.Addressline2,
+		Phone:             req.Phone,
+		PhonePrivate:      req.PhonePrivate,
+		Email:             req.Email,
+		City:              req.City,
+		District:          req.District,
+		State:             req.State,
+		PostalCode:        req.PostalCode,
+		CountryCode:       req.CountryCode,
+		SeatingCapacity:   req.SeatingCapacity,
+		MinBookingDuration: minDur,
+		OpeningPeriod:     req.OpeningPeriod,
+		ClosingPeriod:     req.ClosingPeriod,
+		RelaxationPeriod:  relaxDur,
+		IsAirConditioned:  req.IsAirConditioned,
+		VenueType:         req.VenueType,
+	}
+	if req.Latitude != nil && req.Longitude != nil {
+		venue.Location = &domain.Location{Latitude: *req.Latitude, Longitude: *req.Longitude}
+	}
+
+	media := make([]domain.VenueMedia, 0, len(req.Media))
+	for _, m := range req.Media {
+		var metadataJSON []byte
+		if m.Metadata != nil {
+			metadataJSON, _ = json.Marshal(m.Metadata)
+		}
+		media = append(media, domain.VenueMedia{
+			URL:       m.URL,
+			Primary:   m.Primary,
+			Metadata:  metadataJSON,
+			SortOrder: m.SortOrder,
+		})
+	}
+
+	created, createdMedia, err := s.venueService.CreateVenue(ctx, ownerUUID, venue, media)
+	if err != nil {
+		s.logger.Error("failed to create venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create venue"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, toVenueDetail(created, createdMedia))
 }
 
-// listManagerVenuesHandler lists venues owned/managed by the manager
-// @Summary      List manager venues
-// @Description  Get list of venues owned/managed by the current manager
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Success      200  {array}  map[string]any
-// @Router       /api/v1/manager/venues [get]
-// @Security     BearerAuth
 func (s *Server) listManagerVenuesHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, []gin.H{
-		{
-			"venue_id":          "123e4567-e89b-12d3-a456-426614174000",
-			"venue_name":         "Grand Palace",
-			"city":               "New York",
-			"onboarding_status": "PENDING_APPROVAL",
-		},
+	ctx := c.Request.Context()
+	userIDStr, _ := c.Get("userID")
+
+	ownerUUID, err := uuid.Parse(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	items, err := s.venueService.ListVenues(ctx, &domain.VenueFilter{
+		OwnerID: &ownerUUID,
+		Limit:   50,
 	})
+	if err != nil {
+		s.logger.Error("failed to list manager venues", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list venues"})
+		return
+	}
+
+	c.JSON(http.StatusOK, items)
 }
 
-// getManagerVenueByIDHandler gets manager's venue by ID
-// @Summary      Get manager venue details
-// @Description  Get full specifications of manager's own venue by its ID
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/manager/venues/{venue_id} [get]
-// @Security     BearerAuth
 func (s *Server) getManagerVenueByIDHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusOK, gin.H{
-		"venue_id":             venueID,
-		"venue_name":           "Grand Palace",
-		"address_line_1":       "123 Broadway",
-		"address_line_2":       "Suite 100",
-		"phone":                "+1234567890",
-		"email":                "info@grandpalace.com",
-		"city":                 "New York",
-		"district":             "Manhattan",
-		"state":                "New York",
-		"postal_code":          "10001",
-		"country_code":         "US",
-		"seating_capacity":     500,
-		"min_booking_duration": "2h",
-		"opening_period":       "09:00",
-		"closing_period":       "22:00",
-		"relaxation_period":    "30m",
-		"is_air_conditioned":   true,
-		"venue_type":           "Auditorium",
-		"onboarding_status":    "PENDING_APPROVAL",
-	})
+	ctx := c.Request.Context()
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	venue, media, err := s.venueService.GetVenueDetail(ctx, venueID)
+	if err != nil {
+		if errors.Is(err, domain.ErrVenueNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
+			return
+		}
+		s.logger.Error("failed to get venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get venue"})
+		return
+	}
+
+	c.JSON(http.StatusOK, toVenueDetail(venue, media))
 }
 
-// updateManagerVenueHandler updates a manager's venue details
-// @Summary      Update manager venue
-// @Description  Update details of a manager's venue
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Param        request body map[string]any true "Venue update body"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/manager/venues/{venue_id} [patch]
-// @Security     BearerAuth
 func (s *Server) updateManagerVenueHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusOK, gin.H{
-		"venue_id":             venueID,
-		"venue_name":           "Grand Palace Updated",
-		"address_line_1":       "123 Broadway",
-		"address_line_2":       "Suite 100",
-		"phone":                "+1234567890",
-		"email":                "info@grandpalace.com",
-		"city":                 "New York",
-		"district":             "Manhattan",
-		"state":                "New York",
-		"postal_code":          "10001",
-		"country_code":         "US",
-		"seating_capacity":     600,
-		"min_booking_duration": "2h",
-		"opening_period":       "09:00",
-		"closing_period":       "22:00",
-		"relaxation_period":    "30m",
-		"is_air_conditioned":   true,
-		"venue_type":           "Auditorium",
-		"onboarding_status":    "PENDING_APPROVAL",
-	})
+	ctx := c.Request.Context()
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	existing, _, err := s.venueService.GetVenueDetail(ctx, venueID)
+	if err != nil {
+		if errors.Is(err, domain.ErrVenueNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get venue"})
+		return
+	}
+
+	if existing.OnboardingStatus != domain.StatusPendingApproval {
+		c.JSON(http.StatusForbidden, gin.H{"error": "can only update venue while in PENDING_APPROVAL status"})
+		return
+	}
+
+	var updates map[string]any
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if name, ok := updates["venue_name"].(string); ok {
+		existing.VenueName = name
+	}
+	if addr, ok := updates["addressline_1"].(string); ok {
+		existing.Addressline1 = addr
+	}
+
+	updated, err := s.venueService.UpdateVenue(ctx, existing)
+	if err != nil {
+		s.logger.Error("failed to update venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update venue"})
+		return
+	}
+
+	_, media, _ := s.venueService.GetVenueDetail(ctx, venueID)
+	c.JSON(http.StatusOK, toVenueDetail(updated, media))
 }
 
-// getManagerVenuePricingHandler gets the pricing list of a manager's venue
-// @Summary      Get venue pricing list
-// @Description  Get pricing tiers and schedules of a manager's venue
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Success      200  {array}  map[string]any
-// @Router       /api/v1/manager/venues/{venue_id}/pricing [get]
-// @Security     BearerAuth
-func (s *Server) getManagerVenuePricingHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, []gin.H{
-		{
-			"id":             "987f6543-e21b-12d3-a456-426614174000",
-			"price_per_hour": 150.00,
-			"is_weekend":     false,
-			"currency":       "USD",
-			"is_active":      true,
-			"start_date":     "2026-06-19",
-			"end_date":       "2027-06-19",
-		},
-	})
-}
-
-// createManagerVenuePricingHandler creates new pricing for a manager's venue
-// @Summary      Create venue pricing
-// @Description  Create a new pricing tier for a manager's venue
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Param        request body map[string]any true "Pricing data"
-// @Success      201  {object}  map[string]any
-// @Router       /api/v1/manager/venues/{venue_id}/pricing [post]
-// @Security     BearerAuth
-func (s *Server) createManagerVenuePricingHandler(c *gin.Context) {
-	venueID := c.Param("venue_id")
-	c.JSON(http.StatusCreated, gin.H{
-		"id":             "987f6543-e21b-12d3-a456-426614174000",
-		"venue_id":       venueID,
-		"price_per_hour": 200.00,
-		"is_weekend":     true,
-		"currency":       "USD",
-		"start_date":     "2026-06-20",
-	})
-}
-
-// updateManagerVenuePricingHandler updates pricing details of a manager's venue
-// @Summary      Update venue pricing
-// @Description  Update an existing pricing tier of a manager's venue
-// @Tags         manager
-// @Accept       json
-// @Produce      json
-// @Param        venue_id path string true "Venue ID"
-// @Param        pricing_id path string true "Pricing ID"
-// @Param        request body map[string]any true "Pricing update data"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/manager/venues/{venue_id}/pricing/{pricing_id} [patch]
-// @Security     BearerAuth
-func (s *Server) updateManagerVenuePricingHandler(c *gin.Context) {
-	pricingID := c.Param("pricing_id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":             pricingID,
-		"price_per_hour": 250.00,
-		"start_date":     "2026-06-25",
-	})
-}
-
-// listAdminVenuesHandler lists venues for admin review
-// @Summary      List admin venues
-// @Description  Get a list of all venues for admin review with optional filters
-// @Tags         admin
-// @Accept       json
-// @Produce      json
-// @Param        state query string false "State filter"
-// @Param        district query string false "District filter"
-// @Param        onboarding_status query string false "Status filter"
-// @Param        owner_id query string false "Owner filter"
-// @Param        limit query integer false "Limit filter"
-// @Param        offset query integer false "Offset filter"
-// @Success      200  {array}  map[string]any
-// @Router       /api/v1/admin/venues [get]
-// @Security     BearerAuth
 func (s *Server) listAdminVenuesHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, []gin.H{
-		{
-			"venue_id":          "123e4567-e89b-12d3-a456-426614174000",
-			"venue_name":         "Grand Palace",
-			"owner_id":          "789e4567-e89b-12d3-a456-426614174000",
-			"onboarding_status": "PENDING_APPROVAL",
-			"city":               "New York",
-			"district":           "Manhattan",
-			"state":              "New York",
-			"created_at":         "2026-06-19T20:42:12Z",
-		},
+	ctx := c.Request.Context()
+
+	filter := &domain.VenueFilter{Limit: 50}
+	if status := c.Query("onboarding_status"); status != "" {
+		s := domain.OnboardingStatus(strings.ToUpper(status))
+		filter.Status = &s
+	}
+	if state := c.Query("state"); state != "" {
+		filter.State = &state
+	}
+	if district := c.Query("district"); district != "" {
+		filter.District = &district
+	}
+	if oid := c.Query("owner_id"); oid != "" {
+		if id, err := uuid.Parse(oid); err == nil {
+			filter.OwnerID = &id
+		}
+	}
+
+	items, err := s.venueService.ListVenues(ctx, filter)
+	if err != nil {
+		s.logger.Error("failed to list admin venues", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list venues"})
+		return
+	}
+
+	c.JSON(http.StatusOK, items)
+}
+
+func (s *Server) approveVenueHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	adminIDStr, _ := c.Get("userID")
+	adminUUID, err := uuid.Parse(adminIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid admin id"})
+		return
+	}
+
+	var req domain.ApproveRejectRequest
+	_ = c.ShouldBindJSON(&req)
+
+	result, err := s.venueService.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
+		VenueID: venueID,
+		AdminID: adminUUID,
+		Status:  domain.StatusApproved,
+		Notes:   req.Notes,
+	})
+	if err != nil {
+		s.logger.Error("failed to approve venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve venue"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"venue_id":          result.VenueID,
+		"onboarding_status": domain.StatusApproved,
+		"reviewed_by":       result.ReviewedBy,
+		"admin_notes":       result.AdminNotes,
+		"updated_at":        result.UpdatedAt,
 	})
 }
 
-// createBookingHandler creates a new venue booking
-// @Summary      Create booking
-// @Description  Book a venue with required date and notes
-// @Tags         bookings
-// @Accept       json
-// @Produce      json
-// @Param        Idempotency-Key header string true "Idempotency key"
-// @Param        request body map[string]any true "Booking parameters"
-// @Success      201  {object}  map[string]any
-// @Router       /api/v1/bookings [post]
-// @Security     BearerAuth
+func (s *Server) rejectVenueHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	adminIDStr, _ := c.Get("userID")
+	adminUUID, err := uuid.Parse(adminIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid admin id"})
+		return
+	}
+
+	var req domain.ApproveRejectRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.Notes == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rejection reason is required"})
+		return
+	}
+
+	result, err := s.venueService.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
+		VenueID: venueID,
+		AdminID: adminUUID,
+		Status:  domain.StatusRejected,
+		Notes:   req.Notes,
+	})
+	if err != nil {
+		s.logger.Error("failed to reject venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reject venue"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"venue_id":          result.VenueID,
+		"onboarding_status": domain.StatusRejected,
+		"reviewed_by":       result.ReviewedBy,
+		"admin_notes":       result.AdminNotes,
+		"updated_at":        result.UpdatedAt,
+	})
+}
+
+func (s *Server) listVenuesHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	filter := &domain.VenueFilter{Limit: 50}
+	if state := c.Query("state"); state != "" {
+		filter.State = &state
+	}
+	if district := c.Query("district"); district != "" {
+		filter.District = &district
+	}
+	if city := c.Query("city"); city != "" {
+		filter.City = &city
+	}
+	if venueType := c.Query("venue_type"); venueType != "" {
+		filter.VenueType = &venueType
+	}
+
+	items, err := s.venueService.ListVenues(ctx, filter)
+	if err != nil {
+		s.logger.Error("failed to list venues", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list venues"})
+		return
+	}
+
+	c.JSON(http.StatusOK, items)
+}
+
+func (s *Server) getVenueByIDHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	venue, media, err := s.venueService.GetVenueDetail(ctx, venueID)
+	if err != nil {
+		if errors.Is(err, domain.ErrVenueNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
+			return
+		}
+		s.logger.Error("failed to get venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get venue"})
+		return
+	}
+
+	if venue.OnboardingStatus != domain.StatusApproved {
+		c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, toVenueDetail(venue, media))
+}
+
+// -------- pricing stubs --------
+
+func (s *Server) getManagerVenuePricingHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, []gin.H{})
+}
+
+func (s *Server) createManagerVenuePricingHandler(c *gin.Context) {
+	c.JSON(http.StatusCreated, gin.H{"message": "pricing created"})
+}
+
+func (s *Server) updateManagerVenuePricingHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "pricing updated"})
+}
+
+// -------- booking stubs --------
+
 func (s *Server) createBookingHandler(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{
-		"booking_id":  "456e89b2-12d3-a456-4266-141740001234",
-		"venue_id":    "123e4567-e89b-12d3-a456-426614174000",
-		"status":      "CONFIRMED",
-		"start_time":  "2026-06-25T10:00:00Z",
-		"end_time":    "2026-06-25T14:00:00Z",
-		"total_price": 600.00,
-		"created_at":  "2026-06-19T20:44:12Z",
-	})
+	c.JSON(http.StatusCreated, gin.H{"message": "not implemented yet"})
 }
 
-// listBookingsHandler retrieves the list of bookings for the user
-// @Summary      List bookings
-// @Description  Get list of bookings of the authenticated user
-// @Tags         bookings
-// @Accept       json
-// @Produce      json
-// @Param        status query string false "Status filter"
-// @Param        limit query integer false "Limit"
-// @Param        offset query integer false "Offset"
-// @Success      200  {array}  map[string]any
-// @Router       /api/v1/bookings [get]
-// @Security     BearerAuth
 func (s *Server) listBookingsHandler(c *gin.Context) {
-	c.JSON(http.StatusOK, []gin.H{
-		{
-			"booking_id":  "456e89b2-12d3-a456-4266-141740001234",
-			"venue_id":    "123e4567-e89b-12d3-a456-426614174000",
-			"venue_name":  "Grand Palace",
-			"status":      "CONFIRMED",
-			"start_time":  "2026-06-25T10:00:00Z",
-			"end_time":    "2026-06-25T14:00:00Z",
-			"total_price": 600.00,
-		},
-	})
+	c.JSON(http.StatusOK, []gin.H{})
 }
 
-// getBookingByIDHandler retrieves details of a specific booking
-// @Summary      Get booking by ID
-// @Description  Get details of a specific booking by its ID
-// @Tags         bookings
-// @Accept       json
-// @Produce      json
-// @Param        booking_id path string true "Booking ID"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/bookings/{booking_id} [get]
-// @Security     BearerAuth
 func (s *Server) getBookingByIDHandler(c *gin.Context) {
-	bookingID := c.Param("booking_id")
-	c.JSON(http.StatusOK, gin.H{
-		"booking_id":  bookingID,
-		"venue_id":    "123e4567-e89b-12d3-a456-426614174000",
-		"venue_name":  "Grand Palace",
-		"user_id":     "789e4567-e89b-12d3-a456-426614174000",
-		"status":      "CONFIRMED",
-		"start_time":  "2026-06-25T10:00:00Z",
-		"end_time":    "2026-06-25T14:00:00Z",
-		"total_price": 600.00,
-		"notes":       "Need AV setup and projector.",
-		"created_at":  "2026-06-19T20:44:12Z",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "not implemented yet"})
 }
 
-// cancelBookingHandler cancels an active booking
-// @Summary      Cancel booking
-// @Description  Cancel an active booking by its ID
-// @Tags         bookings
-// @Accept       json
-// @Produce      json
-// @Param        booking_id path string true "Booking ID"
-// @Success      200  {object}  map[string]any
-// @Router       /api/v1/bookings/{booking_id} [delete]
-// @Security     BearerAuth
 func (s *Server) cancelBookingHandler(c *gin.Context) {
-	bookingID := c.Param("booking_id")
-	c.JSON(http.StatusOK, gin.H{
-		"booking_id": bookingID,
-		"status":     "CANCELLED",
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "not implemented yet"})
+}
+
+// -------- helper --------
+
+func toVenueDetail(v *domain.Venue, media []*domain.VenueMedia) domain.VenueDetail {
+	mediaVals := make([]domain.VenueMedia, 0, len(media))
+	for _, m := range media {
+		if m != nil {
+			mediaVals = append(mediaVals, *m)
+		}
+	}
+
+	var lat, lng *string
+	if v.Location != nil {
+		if v.Location.Latitude != "" {
+			lat = &v.Location.Latitude
+		}
+		if v.Location.Longitude != "" {
+			lng = &v.Location.Longitude
+		}
+	}
+
+	return domain.VenueDetail{
+		VenueID:           *v.VenueID,
+		OwnerID:           v.OwnerID.String(),
+		OnboardingStatus:  v.OnboardingStatus,
+		ReviewedBy:        v.ReviewedBy,
+		AdminNotes:        v.AdminNotes,
+		VenueName:         v.VenueName,
+		Addressline1:      v.Addressline1,
+		Addressline2:      v.Addressline2,
+		Phone:             v.Phone,
+		PhonePrivate:      v.PhonePrivate,
+		Email:             v.Email,
+		City:              v.City,
+		District:          v.District,
+		State:             v.State,
+		PostalCode:        v.PostalCode,
+		CountryCode:       v.CountryCode,
+		Latitude:          lat,
+		Longitude:         lng,
+		SeatingCapacity:   v.SeatingCapacity,
+		MinBookingDuration: v.MinBookingDuration.String(),
+		OpeningPeriod:     v.OpeningPeriod,
+		ClosingPeriod:     v.ClosingPeriod,
+		RelaxationPeriod:  v.RelaxationPeriod.String(),
+		IsAirConditioned:  v.IsAirConditioned,
+		VenueType:         v.VenueType,
+		Media:             mediaVals,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
+	}
 }

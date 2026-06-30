@@ -1,14 +1,36 @@
 package domain
 
 import (
+	"context"
 	"errors"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"math"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type BookingRepository interface{}
+type BookingRepository interface {
+	Create(ctx context.Context, booking *Booking) (*CreateBookingResult, error)
+
+	// GetByID fetches a booking by its ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*Booking, error)
+
+	// GetByUser fetches bookings for a user (paginated, with status filter).
+	GetByUser(ctx context.Context, userID uuid.UUID, statuses []*BookingStatus, limit, offset int) ([]*Booking, int64, error)
+
+	// GetByVenueAndDateRange fetches bookings for a venue within a date range.
+	GetByVenueAndDateRange(ctx context.Context, venueID uuid.UUID, startDate, endDate time.Time) ([]*Booking, error)
+
+	// GetVenueDailyBookings fetches bookings for a specific day.
+	GetVenueDailyBookings(ctx context.Context, venueID uuid.UUID, date time.Time) ([]*Booking, error)
+
+	// UpdateStatus updates the status of a booking.
+	UpdateStatus(ctx context.Context, id uuid.UUID, status BookingStatus, reason string, actorID uuid.UUID) (*UpdateStatusResult, error)
+
+	// ConfirmBooking updates a booking to CONFIRMED and sets payment_id.
+	ConfirmBooking(ctx context.Context, id uuid.UUID, paymentID uuid.UUID) (*Booking, error)
+}
 
 type CreateBookingRequest struct {
 	VenueID         uuid.UUID
@@ -17,6 +39,10 @@ type CreateBookingRequest struct {
 	EndTime         time.Time
 	GuestCount      int32
 	SpecialRequests string
+}
+type CreateBookingResult struct {
+	IsAvailable bool
+	Booking     *Booking
 }
 
 type BookingStatus string
@@ -94,6 +120,15 @@ type CreateBookingResponse struct {
 
 	//
 	ExpiresAt time.Time `json:"expires_at"` // When the pending booking will expire
+}
+
+type UpdateStatusResult struct {
+	// Updated indicates if the booking was actually updated.
+	// If false, the booking was not in a valid state for the update.
+	Updated bool `json:"updated"`
+
+	// Booking contains the updated booking (only populated if Updated is true).
+	Booking *Booking `json:"booking,omitempty"`
 }
 
 func IsWeekend(t time.Time) bool {

@@ -9,7 +9,11 @@ import (
 	"github.com/Nit-Simple/BookMyVenue/internal/handler"
 	"github.com/Nit-Simple/BookMyVenue/internal/repository"
 	"github.com/Nit-Simple/BookMyVenue/internal/repository/auth"
-	"github.com/Nit-Simple/BookMyVenue/internal/services/authService"
+	"github.com/Nit-Simple/BookMyVenue/internal/repository/venue"
+	authservice "github.com/Nit-Simple/BookMyVenue/internal/services/authService"
+	mediaService "github.com/Nit-Simple/BookMyVenue/internal/services/mediaService"
+	razorpayService "github.com/Nit-Simple/BookMyVenue/internal/services/razorpayService"
+	venueservice "github.com/Nit-Simple/BookMyVenue/internal/services/venueService"
 	"github.com/Nit-Simple/BookMyVenue/pkg/logger"
 
 	_ "github.com/Nit-Simple/BookMyVenue/docs"
@@ -60,7 +64,13 @@ func main() {
 	authRepo := auth.NewAuthRepository(db)
 	authSvc := authservice.NewAuthService(authRepo, cfg)
 
-	server := handler.NewServer(cfg, db, logger, cache, authSvc)
+	venueRepo := venue.NewVenueRepository(db)
+	venueMediaRepo := repository.NewVenueMediaRepository(db)
+	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo)
+	razorpaySvc := razorpayService.NewRazorpayService(cfg)
+	mediaSvc := mediaService.NewMediaService(cfg, venueMediaRepo)
+
+	server := handler.NewServer(cfg, db, logger, cache, authSvc, venueSvc, razorpaySvc, mediaSvc)
 	if err := server.Start(); err != nil {
 		logger.Error("unable to start the server", "err", err)
 		os.Exit(1)
