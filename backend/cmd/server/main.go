@@ -68,7 +68,7 @@ func main() {
 	venueMediaRepo := repository.NewVenueMediaRepository(db)
 	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo)
 	razorpaySvc := razorpayService.NewRazorpayService(cfg)
-	mediaSvc := mediaService.NewMediaService(cfg, venueMediaRepo)
+	mediaSvc := mediaService.NewMediaService(cfg, venueMediaRepo, logger)
 
 	server := handler.NewServer(cfg, db, logger, cache, authSvc, venueSvc, razorpaySvc, mediaSvc)
 	if err := server.Start(); err != nil {

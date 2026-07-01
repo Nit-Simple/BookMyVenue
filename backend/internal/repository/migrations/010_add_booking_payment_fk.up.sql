@@ -1,0 +1,2 @@
+ALTER TABLE bookings
+    ADD COLUMN payment_id UUID NULL REFERENCES payments(id) ON DELETE SET NULL;
