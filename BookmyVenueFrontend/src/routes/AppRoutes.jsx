@@ -13,7 +13,6 @@ import ManagerDashboard from '../pages/manager/ManagerDashboard'
 import ManagerVenues from '../pages/manager/ManagerVenues'
 import AddVenue from '../pages/manager/AddVenue'
 import ManagerVenueBooking from '../pages/manager/ManagerVenueBooking'
-
 function AppRoutes() {
   return (
     <Routes>
