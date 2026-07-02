@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>You're offline — BookMyVenue</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: 'Inter', system-ui, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%);
+        color: #134e4a;
+        padding: 24px;
+      }
+      .card {
+        max-width: 420px;
+        text-align: center;
+      }
+      .icon {
+        width: 88px;
+        height: 88px;
+        margin: 0 auto 24px;
+        border-radius: 24px;
+        background: #0f766e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 40px;
+      }
+      h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+      p { color: #475569; line-height: 1.6; margin-bottom: 24px; }
+      button {
+        background: #0f766e;
+        color: #fff;
+        border: none;
+        padding: 12px 28px;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { background: #115e59; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon">📡</div>
+      <h1>You're offline</h1>
+      <p>
+        We can't reach BookMyVenue right now. Check your connection and try
+        again — your saved venues are still available once you reconnect.
+      </p>
+      <button onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>
