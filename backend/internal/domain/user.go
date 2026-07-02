@@ -30,6 +30,26 @@ type Sessions struct {
 	CreatedAt        time.Time `db:"created_at"`
 	LastActiveAt     time.Time `db:"last_active"`
 }
+type RegisterRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required,min=6,max=20"`
+	Phone    string `json:"phone" binding:"required"`
+	Role     string `json:"role"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type UserDB struct {
 	ID             string    `db:"id"`
 	Email          string    `db:"email"`

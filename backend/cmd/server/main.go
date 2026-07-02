@@ -66,7 +66,9 @@ func main() {
 
 	venueRepo := venue.NewVenueRepository(db)
 	venueMediaRepo := repository.NewVenueMediaRepository(db)
-	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo)
+	venuePricingRepo := repository.NewVenuePricingRepository(db)
+	venueAppRepo := repository.NewVenueApplicationRepository(db)
+	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo, venuePricingRepo, venueAppRepo)
 	razorpaySvc := razorpayService.NewRazorpayService(cfg)
 	mediaSvc := mediaService.NewMediaService(cfg, venueMediaRepo, logger)
 

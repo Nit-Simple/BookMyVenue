@@ -8,26 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6,max=20"`
-	Phone    string `json:"phone" binding:"required"`
-	Role     string `json:"role"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
-
-type RefreshRequest struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
-type LogoutRequest struct {
-	RefreshToken string `json:"refresh_token"`
-}
-
 // registerHandler handles user registration.
 // @Summary      Register a new user
 // @Description  Register a new user in the system.
@@ -41,7 +21,7 @@ type LogoutRequest struct {
 // @Router       /api/v1/auth/register [post]
 func (s *Server) registerHandler(c *gin.Context) {
 	ctx := c.Request.Context()
-	var req RegisterRequest
+	var req domain.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -80,7 +60,7 @@ func (s *Server) registerHandler(c *gin.Context) {
 // @Router       /api/v1/auth/login [post]
 func (s *Server) loginHandler(c *gin.Context) {
 	ctx := c.Request.Context()
-	var req LoginRequest
+	var req domain.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -115,7 +95,7 @@ func (s *Server) loginHandler(c *gin.Context) {
 // @Router       /api/v1/auth/refresh [post]
 func (s *Server) refreshHandler(c *gin.Context) {
 	ctx := c.Request.Context()
-	var req RefreshRequest
+	var req domain.RefreshRequest
 	_ = c.ShouldBindJSON(&req)
 
 	refreshToken := req.RefreshToken
@@ -157,7 +137,7 @@ func (s *Server) refreshHandler(c *gin.Context) {
 // @Router       /api/v1/auth/logout [post]
 func (s *Server) logoutHandler(c *gin.Context) {
 	ctx := c.Request.Context()
-	var req LogoutRequest
+	var req domain.LogoutRequest
 	_ = c.ShouldBindJSON(&req)
 
 	refreshToken := req.RefreshToken
