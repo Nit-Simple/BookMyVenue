@@ -47,7 +47,7 @@ func (r *authRepository) CheckExistByPhone(ctx context.Context, phone string) (b
 func (r *authRepository) CheckRoleByID(ctx context.Context, id string) (bool, error) {
 	var IsManager bool
 	query := `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 and role = 'venue_manager')AS "IsManager";`
-	err := r.DB.QueryRow(ctx, query, id).Scan(IsManager)
+	err := r.DB.QueryRow(ctx, query, id).Scan(&IsManager)
 	if err != nil {
 		return false, err
 	}

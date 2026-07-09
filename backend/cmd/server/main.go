@@ -11,6 +11,7 @@ import (
 	"github.com/Nit-Simple/BookMyVenue/internal/repository/auth"
 	"github.com/Nit-Simple/BookMyVenue/internal/repository/venue"
 	authservice "github.com/Nit-Simple/BookMyVenue/internal/services/authService"
+	bookingservice "github.com/Nit-Simple/BookMyVenue/internal/services/bookingService"
 	mediaService "github.com/Nit-Simple/BookMyVenue/internal/services/mediaService"
 	razorpayService "github.com/Nit-Simple/BookMyVenue/internal/services/razorpayService"
 	venueservice "github.com/Nit-Simple/BookMyVenue/internal/services/venueService"
@@ -65,14 +66,22 @@ func main() {
 	authSvc := authservice.NewAuthService(authRepo, cfg)
 
 	venueRepo := venue.NewVenueRepository(db)
+	bookingRepo := repository.NewBookingRepository(db)
+	paymentRepo := repository.NewPaymentRepository(db)
+	idempotencyRepo := repository.NewIdempotencyRepository(db)
 	venueMediaRepo := repository.NewVenueMediaRepository(db)
 	venuePricingRepo := repository.NewVenuePricingRepository(db)
 	venueAppRepo := repository.NewVenueApplicationRepository(db)
 	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo, venuePricingRepo, venueAppRepo)
 	razorpaySvc := razorpayService.NewRazorpayService(cfg)
-	mediaSvc := mediaService.NewMediaService(cfg, venueMediaRepo, logger)
+	mediaSvc, err := mediaService.NewMediaService(cfg, venueMediaRepo, logger)
+	if err != nil {
+		logger.Error("failed to initialize media service", "err", err)
+		os.Exit(1)
+	}
+	bookingSvc := bookingservice.NewBookingService(bookingRepo, paymentRepo, venueRepo, venuePricingRepo, razorpaySvc, idempotencyRepo, cfg, logger)
 
-	server := handler.NewServer(cfg, db, logger, cache, authSvc, venueSvc, razorpaySvc, mediaSvc)
+	server := handler.NewServer(cfg, db, logger, cache, authSvc, venueSvc, razorpaySvc, mediaSvc, idempotencyRepo, bookingSvc)
 	if err := server.Start(); err != nil {
 		logger.Error("unable to start the server", "err", err)
 		os.Exit(1)

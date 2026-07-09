@@ -49,16 +49,18 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
                 id, venue_id, user_id, payment_id,
                 start_time, end_time, time_range, booking_date,
                 total_amount, currency, status,
-                cancellation_reason, cancelled_at,
+                cancellation_reason, cancelled_at, cancelled_by,
                 booking_reference, special_requests, guest_count,
                 created_at, updated_at
         )
         SELECT
-            COALESCE(
-                (SELECT is_available FROM availability_check),
-                false
-            ) AS is_available,
-            (SELECT row_to_json(insert_booking.*) FROM insert_booking) AS booking_json;
+            id, venue_id, user_id, payment_id,
+            start_time, end_time, time_range, booking_date,
+            total_amount, currency, status,
+            cancellation_reason, cancelled_at, cancelled_by,
+            booking_reference, special_requests, guest_count,
+            created_at, updated_at
+        FROM insert_booking;
     `
 
 	err := r.DB.QueryRow(
@@ -91,6 +93,7 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
 		&booking.Status,
 		&booking.CancellationReason,
 		&booking.CancelledAt,
+		&booking.CancelledBy,
 		&booking.BookingReference,
 		&booking.SpecialRequests,
 		&booking.GuestCount,
@@ -130,7 +133,7 @@ func (r *bookingRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at
         FROM bookings
@@ -152,6 +155,7 @@ func (r *bookingRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 		&booking.Status,
 		&booking.CancellationReason,
 		&booking.CancelledAt,
+		&booking.CancelledBy,
 		&booking.BookingReference,
 		&booking.SpecialRequests,
 		&booking.GuestCount,
@@ -172,12 +176,18 @@ func (r *bookingRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 
 func (r *bookingRepository) GetByUser(ctx context.Context, userID uuid.UUID, statuses []*domain.BookingStatus, limit, offset int) ([]*domain.Booking, int64, error) {
 	countQuery := `SELECT COUNT(*) FROM bookings WHERE user_id = $1`
-	countArgs := []interface{}{userID}
+	countArgs := []any{userID}
 
 	// Add status filter if provided
 	if len(statuses) > 0 {
 		countQuery += " AND status = ANY($2)"
-		countArgs = append(countArgs, statuses)
+		strStatuses := make([]string, len(statuses))
+		for i, s := range statuses {
+			if s != nil {
+				strStatuses[i] = string(*s)
+			}
+		}
+		countArgs = append(countArgs, strStatuses)
 	}
 
 	var total int64
@@ -196,24 +206,30 @@ func (r *bookingRepository) GetByUser(ctx context.Context, userID uuid.UUID, sta
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at
         FROM bookings
         WHERE user_id = $1
     `
-	dataArgs := []interface{}{userID}
+	dataArgs := []any{userID}
 	argIndex := 2
 
 	// Add status filter if provided
 	if len(statuses) > 0 {
 		dataQuery += fmt.Sprintf(" AND status = ANY($%d)", argIndex)
-		dataArgs = append(dataArgs, statuses)
+		strStatuses := make([]string, len(statuses))
+		for i, s := range statuses {
+			if s != nil {
+				strStatuses[i] = string(*s)
+			}
+		}
+		dataArgs = append(dataArgs, strStatuses)
 		argIndex++
 	}
 
 	// Add ordering and pagination
-	dataQuery += " ORDER BY start_time DESC LIMIT $%d OFFSET $%d"
+	dataQuery += fmt.Sprintf(" ORDER BY start_time DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	dataArgs = append(dataArgs, limit, offset)
 
 	rows, err := r.DB.Query(ctx, dataQuery, dataArgs...)
@@ -222,9 +238,6 @@ func (r *bookingRepository) GetByUser(ctx context.Context, userID uuid.UUID, sta
 	}
 	defer rows.Close()
 
-	// =============================================
-	// 3. SCAN RESULTS
-	// =============================================
 	bookings := make([]*domain.Booking, 0, limit)
 	for rows.Next() {
 		var b domain.Booking
@@ -242,6 +255,7 @@ func (r *bookingRepository) GetByUser(ctx context.Context, userID uuid.UUID, sta
 			&b.Status,
 			&b.CancellationReason,
 			&b.CancelledAt,
+			&b.CancelledBy,
 			&b.BookingReference,
 			&b.SpecialRequests,
 			&b.GuestCount,
@@ -272,7 +286,7 @@ func (r *bookingRepository) GetByVenueAndDateRange(
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at
         FROM bookings
@@ -306,6 +320,7 @@ func (r *bookingRepository) GetByVenueAndDateRange(
 			&b.Status,
 			&b.CancellationReason,
 			&b.CancelledAt,
+			&b.CancelledBy,
 			&b.BookingReference,
 			&b.SpecialRequests,
 			&b.GuestCount,
@@ -338,7 +353,7 @@ func (r *bookingRepository) GetVenueDailyBookings(
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at
         FROM bookings
@@ -371,6 +386,7 @@ func (r *bookingRepository) GetVenueDailyBookings(
 			&b.Status,
 			&b.CancellationReason,
 			&b.CancelledAt,
+			&b.CancelledBy,
 			&b.BookingReference,
 			&b.SpecialRequests,
 			&b.GuestCount,
@@ -421,7 +437,7 @@ func (r *bookingRepository) UpdateStatus(
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at;
     `
@@ -448,6 +464,7 @@ func (r *bookingRepository) UpdateStatus(
 		&booking.Status,
 		&booking.CancellationReason,
 		&booking.CancelledAt,
+		&booking.CancelledBy,
 		&booking.BookingReference,
 		&booking.SpecialRequests,
 		&booking.GuestCount,
@@ -492,7 +509,7 @@ func (r *bookingRepository) ConfirmBooking(
             id, venue_id, user_id, payment_id,
             start_time, end_time, time_range, booking_date,
             total_amount, currency, status,
-            cancellation_reason, cancelled_at,
+            cancellation_reason, cancelled_at, cancelled_by,
             booking_reference, special_requests, guest_count,
             created_at, updated_at;
     `
@@ -501,8 +518,8 @@ func (r *bookingRepository) ConfirmBooking(
 	err := r.DB.QueryRow(
 		ctx,
 		query,
-		paymentID, // $1
-		id,        // $2
+		paymentID,
+		id,
 	).Scan(
 		&booking.ID,
 		&booking.VenueID,
@@ -517,6 +534,7 @@ func (r *bookingRepository) ConfirmBooking(
 		&booking.Status,
 		&booking.CancellationReason,
 		&booking.CancelledAt,
+		&booking.CancelledBy,
 		&booking.BookingReference,
 		&booking.SpecialRequests,
 		&booking.GuestCount,

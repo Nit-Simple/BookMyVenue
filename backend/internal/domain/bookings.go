@@ -76,6 +76,7 @@ type Booking struct {
 	Status             BookingStatus      `db:"status" json:"status"`
 	CancellationReason pgtype.Text        `db:"cancellation_reason" json:"cancellation_reason"`
 	CancelledAt        pgtype.Timestamptz `db:"cancelled_at" json:"cancelled_at"`
+	CancelledBy        pgtype.UUID        `db:"cancelled_by" json:"cancelled_by"`
 
 	BookingReference string `db:"booking_reference" json:"booking_reference"`
 

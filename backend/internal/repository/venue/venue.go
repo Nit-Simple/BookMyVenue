@@ -348,7 +348,7 @@ func (v *venueRepository) ListVenueByFilter(ctx context.Context, filter *domain.
 		args = append(args, *filter.Status)
 		argCount++
 	} else {
-		query += "WHERE onboarding_status = 'APPROVED'::venue_onboarding_status"
+		query += "WHERE 1=1"
 	}
 
 	if filter.State != nil && *filter.State != "" {

@@ -25,8 +25,12 @@ type PaymentRepository interface {
 	// UpdateOrderID updates the razorpay_order_id on a payment.
 	UpdateOrderID(ctx context.Context, id uuid.UUID, orderID string) (*UpdatePaymentResult, error)
 
+	// UpdateToAuthorized transitions a payment from PENDING to AUTHORIZED
+	// with the razorpay_payment_id and signature from the confirm callback.
+	UpdateToAuthorized(ctx context.Context, orderID, razorpayPaymentID, razorpaySignature string) (*UpdatePaymentResult, error)
+
 	// UpdateToCaptured updates a payment to CAPTURED with webhook data.
-	UpdateToCaptured(ctx context.Context, orderID, paymentID string, payload json.RawMessage) error
+	UpdateToCaptured(ctx context.Context, orderID, paymentID string, payload json.RawMessage) (*UpdatePaymentResult, error)
 
 	// UpdateToFailed updates a payment to FAILED.
 	UpdateToFailed(ctx context.Context, orderID string, reason string) (*UpdatePaymentResult, error)

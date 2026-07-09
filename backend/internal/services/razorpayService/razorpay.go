@@ -18,14 +18,16 @@ import (
 )
 
 type RazorpayService struct {
-	cfg        *config.Config
-	httpClient *http.Client
+	cfg           *config.Config
+	httpClient    *http.Client
+	webhookSecret string
 }
 
 func NewRazorpayService(cfg *config.Config) *RazorpayService {
 	return &RazorpayService{
-		cfg:        cfg,
-		httpClient: &http.Client{},
+		cfg:           cfg,
+		httpClient:    &http.Client{},
+		webhookSecret: cfg.RazorpayWebhookSecret,
 	}
 }
 
@@ -77,7 +79,7 @@ func (s *RazorpayService) VerifyWebhookSignature(payload []byte, signature, time
 	}
 
 	payloadStr := fmt.Sprintf("%s.%s", timestamp, string(payload))
-	expected := hmacSHA256(payloadStr, s.cfg.RazorpayKeySecret)
+	expected := hmacSHA256(payloadStr, s.webhookSecret)
 
 	decoded, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {

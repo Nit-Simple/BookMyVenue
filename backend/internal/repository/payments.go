@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
@@ -268,25 +269,137 @@ func (s *paymentRepository) UpdateOrderID(ctx context.Context, id uuid.UUID, ord
 	return &domain.UpdatePaymentResult{Updated: true, Payment: &p}, nil
 }
 
-func (s *paymentRepository) UpdateToCaptured(ctx context.Context, orderID, paymentID string, payload json.RawMessage) error {
+func (s *paymentRepository) UpdateToAuthorized(ctx context.Context, orderID, razorpayPaymentID, razorpaySignature string) (*domain.UpdatePaymentResult, error) {
+	query := `
+		UPDATE payments
+		SET
+			status = 'AUTHORIZED',
+			razorpay_payment_id = $1,
+			razorpay_signature = $2,
+			updated_at = NOW()
+		WHERE razorpay_order_id = $3
+		  AND status = 'PENDING'
+		RETURNING
+			id, booking_id, razorpay_payment_id, razorpay_order_id, razorpay_signature,
+			amount, currency, status, razorpay_status,
+			method, card_last_4, bank_name, vpa,
+			refund_id, refund_amount, refund_status,
+			webhook_payload, webhook_received_at,
+			created_at, updated_at;
+	`
+
+	var p domain.Payment
+	err := s.DB.QueryRow(ctx, query, razorpayPaymentID, razorpaySignature, orderID).Scan(
+		&p.ID,
+		&p.BookingID,
+		&p.RazorpayPaymentID,
+		&p.RazorpayOrderID,
+		&p.RazorpaySignature,
+		&p.Amount,
+		&p.Currency,
+		&p.Status,
+		&p.RazorpayStatus,
+		&p.Method,
+		&p.CardLast4,
+		&p.BankName,
+		&p.VPA,
+		&p.RefundID,
+		&p.RefundAmount,
+		&p.RefundStatus,
+		&p.WebhookPayload,
+		&p.WebhookReceivedAt,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &domain.UpdatePaymentResult{Updated: false, Payment: nil}, nil
+		}
+		return nil, fmt.Errorf("failed to authorize payment: %w", err)
+	}
+
+	return &domain.UpdatePaymentResult{Updated: true, Payment: &p}, nil
+}
+
+func (s *paymentRepository) UpdateToCaptured(ctx context.Context, orderID, paymentID string, payload json.RawMessage) (*domain.UpdatePaymentResult, error) {
+	// Parse method details from webhook payload if available
+	var method, cardLast4, bankName, vpa *string
+	if len(payload) > 0 {
+		var event domain.WebhookEvent
+		if err := json.Unmarshal(payload, &event); err == nil {
+			p := event.Payload.Payment
+			if p.Method != "" {
+				m := mapPaymentMethod(p.Method)
+				if m != "" {
+					method = &m
+				}
+			}
+			if p.CardLast4 != "" {
+				cardLast4 = &p.CardLast4
+			}
+			if p.Bank != "" {
+				bankName = &p.Bank
+			}
+			if p.VPA != "" {
+				vpa = &p.VPA
+			}
+		}
+	}
+
 	query := `
 		UPDATE payments
 		SET
 			status = 'CAPTURED',
 			razorpay_payment_id = $1,
-			webhook_payload = $2,
+			method = COALESCE($2, method),
+			card_last_4 = COALESCE($3, card_last_4),
+			bank_name = COALESCE($4, bank_name),
+			vpa = COALESCE($5, vpa),
+			webhook_payload = $6,
 			webhook_received_at = NOW(),
 			updated_at = NOW()
-		WHERE razorpay_order_id = $3
-		  AND status = 'AUTHORIZED';
+		WHERE razorpay_order_id = $7
+		  AND status = 'AUTHORIZED'
+		RETURNING
+			id, booking_id, razorpay_payment_id, razorpay_order_id, razorpay_signature,
+			amount, currency, status, razorpay_status,
+			method, card_last_4, bank_name, vpa,
+			refund_id, refund_amount, refund_status,
+			webhook_payload, webhook_received_at,
+			created_at, updated_at;
 	`
 
-	_, err := s.DB.Exec(ctx, query, paymentID, payload, orderID)
+	var p domain.Payment
+	err := s.DB.QueryRow(ctx, query, paymentID, method, cardLast4, bankName, vpa, payload, orderID).Scan(
+		&p.ID,
+		&p.BookingID,
+		&p.RazorpayPaymentID,
+		&p.RazorpayOrderID,
+		&p.RazorpaySignature,
+		&p.Amount,
+		&p.Currency,
+		&p.Status,
+		&p.RazorpayStatus,
+		&p.Method,
+		&p.CardLast4,
+		&p.BankName,
+		&p.VPA,
+		&p.RefundID,
+		&p.RefundAmount,
+		&p.RefundStatus,
+		&p.WebhookPayload,
+		&p.WebhookReceivedAt,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to update payment to captured: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &domain.UpdatePaymentResult{Updated: false, Payment: nil}, nil
+		}
+		return nil, fmt.Errorf("failed to update payment to captured: %w", err)
 	}
 
-	return nil
+	return &domain.UpdatePaymentResult{Updated: true, Payment: &p}, nil
 }
 
 func (s *paymentRepository) UpdateToFailed(ctx context.Context, orderID string, reason string) (*domain.UpdatePaymentResult, error) {
@@ -422,4 +535,15 @@ func (s *paymentRepository) GetPaymentMetrics(ctx context.Context, startDate, en
 	}
 
 	return &metrics, nil
+}
+
+func mapPaymentMethod(method string) string {
+	switch method {
+	case "paylater":
+		return "PAY_LATER"
+	case "bank_transfer":
+		return ""
+	default:
+		return strings.ToUpper(method)
+	}
 }

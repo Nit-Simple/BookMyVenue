@@ -29,7 +29,12 @@ type PaymentWebhookEntity struct {
 	Notes       struct {
 		BookingID string `json:"booking_id"`
 	} `json:"notes"`
-	CreatedAt int64 `json:"created_at"`
+	ErrorCode        string `json:"error_code"`        // "BAD_CREDENTIALS", etc. (on payment.failed)
+	ErrorDescription string `json:"error_description"` // human-readable failure reason
+	ErrorSource      string `json:"error_source"`
+	ErrorStep        string `json:"error_step"`
+	ErrorReason      string `json:"error_reason"`
+	CreatedAt        int64  `json:"created_at"`
 }
 
 // WebhookHeaders contains the headers from the webhook request

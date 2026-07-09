@@ -28,6 +28,9 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 	r.GET("/api/v1/venues", s.listVenuesHandler)
 	r.GET("/api/v1/venues/:venue_id", s.getVenueByIDHandler)
 
+	// Razorpay webhook (no auth — signature verification is the auth)
+	r.POST("/api/v1/webhooks/razorpay", s.razorpayWebhookHandler)
+
 	// Manager venue and pricing routes
 	manager := r.Group("/api/v1/manager/venues")
 	manager.Use(middlewares.RequireAuth(s.config.JWTPublicKey))
@@ -35,12 +38,11 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 	{
 		manager.POST("", s.createManagerVenueHandler)
 		manager.GET("", s.listManagerVenuesHandler)
+		manager.GET("/applications", s.listManagerApplicationsHandler)
 		manager.GET("/:venue_id", s.getManagerVenueByIDHandler)
 		manager.PATCH("/:venue_id", s.updateManagerVenueHandler)
 		manager.GET("/:venue_id/pricing", s.getManagerVenuePricingHandler)
 		manager.POST("/:venue_id/pricing", s.createManagerVenuePricingHandler)
-		manager.PATCH("/:venue_id/pricing/:pricing_id", s.updateManagerVenuePricingHandler)
-		manager.GET("/applications", s.listManagerApplicationsHandler)
 	}
 
 	admin := r.Group("/api/v1/admin")
@@ -57,7 +59,8 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 	bookings := r.Group("/api/v1/bookings")
 	bookings.Use(middlewares.RequireAuth(s.config.JWTPublicKey))
 	{
-		bookings.POST("", s.createBookingHandler)
+			bookings.POST("", middlewares.IdempotencyKey(s.idempotencyRepo, s.logger), s.createBookingHandler)
+		bookings.POST("/:booking_id/confirm", middlewares.IdempotencyKey(s.idempotencyRepo, s.logger), s.confirmPaymentHandler)
 		bookings.GET("", s.listBookingsHandler)
 		bookings.GET("/:booking_id", s.getBookingByIDHandler)
 		bookings.DELETE("/:booking_id", s.cancelBookingHandler)

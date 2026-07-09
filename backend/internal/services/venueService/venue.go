@@ -169,6 +169,11 @@ func (s *VenueService) SubmitVenuePricing(ctx context.Context, venueID, ownerID 
 		return nil, errors.New("venue does not belong to user")
 	}
 
+	// Remove old pending pricing before inserting new set
+	if err := s.venuePricingRepo.DeletePending(ctx, venueID); err != nil {
+		return nil, fmt.Errorf("delete old pending pricing: %w", err)
+	}
+
 	if err := s.venuePricingRepo.InsertBatch(ctx, venueID, pricing, false); err != nil {
 		return nil, fmt.Errorf("insert pending pricing: %w", err)
 	}
@@ -223,13 +228,17 @@ func (s *VenueService) ApproveApplication(ctx context.Context, appID, adminID uu
 		if err := s.venuePricingRepo.ActivatePending(ctx, app.VenueID); err != nil {
 			return nil, fmt.Errorf("activate pending pricing: %w", err)
 		}
-		if _, err := s.venueRepo.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
-			VenueID: app.VenueID,
-			AdminID: adminID,
-			Status:  domain.StatusApproved,
-			Notes:   notes,
-		}); err != nil {
-			return nil, fmt.Errorf("approve venue: %w", err)
+		// Also approve venue if still pending (first-time approval via pricing update)
+		venue, _ := s.venueRepo.GetVenueByID(ctx, app.VenueID)
+		if venue != nil && venue.OnboardingStatus != domain.StatusApproved {
+			if _, err := s.venueRepo.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
+				VenueID: app.VenueID,
+				AdminID: adminID,
+				Status:  domain.StatusApproved,
+				Notes:   notes,
+			}); err != nil {
+				return nil, fmt.Errorf("approve venue: %w", err)
+			}
 		}
 	}
 
@@ -251,19 +260,21 @@ func (s *VenueService) RejectApplication(ctx context.Context, appID, adminID uui
 		return nil, errors.New("application is not in PENDING_REVIEW status")
 	}
 
-	if app.Type == domain.AppTypePricingUpdate {
+	switch app.Type {
+	case domain.AppTypeNewVenue:
+		if _, err := s.venueRepo.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
+			VenueID: app.VenueID,
+			AdminID: adminID,
+			Status:  domain.StatusRejected,
+			Notes:   notes,
+		}); err != nil {
+			return nil, fmt.Errorf("reject venue: %w", err)
+		}
+
+	case domain.AppTypePricingUpdate:
 		if err := s.venuePricingRepo.DeletePending(ctx, app.VenueID); err != nil {
 			return nil, fmt.Errorf("delete pending pricing: %w", err)
 		}
-	}
-
-	if _, err := s.venueRepo.UpdateVenueStatus(ctx, &domain.VenueStatusUpdate{
-		VenueID: app.VenueID,
-		AdminID: adminID,
-		Status:  domain.StatusRejected,
-		Notes:   notes,
-	}); err != nil {
-		return nil, fmt.Errorf("reject venue: %w", err)
 	}
 
 	updated, err := s.venueApplicationRepo.UpdateStatus(ctx, appID, domain.AppStatusRejected, adminID, notes)

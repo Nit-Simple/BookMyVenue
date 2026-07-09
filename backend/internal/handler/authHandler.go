@@ -78,7 +78,7 @@ func (s *Server) loginHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  accessToken,
 		"refresh_token": refreshToken,
-		"expires_in":    1800,
+		"expires_in":    int(s.config.JWTExpiry.Seconds()),
 	})
 }
 
@@ -96,7 +96,9 @@ func (s *Server) loginHandler(c *gin.Context) {
 func (s *Server) refreshHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req domain.RefreshRequest
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.RefreshToken = ""
+	}
 
 	refreshToken := req.RefreshToken
 	if refreshToken == "" {
@@ -120,7 +122,7 @@ func (s *Server) refreshHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  newAccessToken,
 		"refresh_token": newRefreshToken,
-		"expires_in":    1800,
+		"expires_in":    int(s.config.JWTExpiry.Seconds()),
 	})
 }
 
@@ -138,7 +140,9 @@ func (s *Server) refreshHandler(c *gin.Context) {
 func (s *Server) logoutHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req domain.LogoutRequest
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req.RefreshToken = ""
+	}
 
 	refreshToken := req.RefreshToken
 	if refreshToken == "" {

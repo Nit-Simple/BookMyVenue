@@ -47,8 +47,9 @@ type Config struct {
 	CloudinaryAPISecret string
 
 	// Razorpay
-	RazorpayKeyID     string
-	RazorpayKeySecret string
+	RazorpayKeyID          string
+	RazorpayKeySecret      string
+	RazorpayWebhookSecret  string
 }
 
 func (c *Config) Addr() string {
@@ -71,10 +72,10 @@ func Load() (*Config, error) {
 	cfg.AllowedOrigins = getCSV("ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"})
 
 	// typed parsing
-	cfg.ReadTimeout = getDuration("READ_TIMEOUT", 5*time.Second)
-	cfg.WriteTimeout = getDuration("WRITE_TIMEOUT", 10*time.Second)
+	cfg.ReadTimeout = getDuration("READ_TIMEOUT", 30*time.Second)
+	cfg.WriteTimeout = getDuration("WRITE_TIMEOUT", 60*time.Second)
 	cfg.IdleTimeout = getDuration("IDLE_TIMEOUT", 120*time.Second)
-	cfg.ShutdownTimeout = getDuration("SHUTDOWN_TIMEOUT", 30*time.Second)
+	cfg.ShutdownTimeout = getDuration("SHUTDOWN_TIMEOUT", 60*time.Second)
 
 	cfg.DBMaxConns = int32(getInt("DB_MAX_CONNS", 25))
 	cfg.DBMinConns = int32(getInt("DB_MIN_CONNS", 5))
@@ -89,6 +90,7 @@ func Load() (*Config, error) {
 	// Razorpay (all required)
 	cfg.RazorpayKeyID = requireEnv("RAZORPAY_TEST_API_KEY", &errs)
 	cfg.RazorpayKeySecret = requireEnv("RAZORPAY_TEST_API_SECRET", &errs)
+	cfg.RazorpayWebhookSecret = getEnv("RAZORPAY_TEST_WEBHOOK_SECRET", cfg.RazorpayKeySecret)
 
 	cfg.JWTExpiry = getDuration("JWT_EXPIRY", 15*time.Minute)
 	cfg.RefreshExpiry = getDuration("REFRESH_EXPIRY", 7*24*time.Hour)

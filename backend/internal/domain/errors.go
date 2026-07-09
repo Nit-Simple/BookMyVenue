@@ -15,6 +15,7 @@ var (
 	ErrVenueIDRequired              = errors.New("venue id is required for update")
 	ErrVenueNotFound                = errors.New("venue not found")
 	ErrVenueNotAvailableInTime      = errors.New("venue not available for requested time slot")
+	ErrVenueNotApproved             = errors.New("venue is not approved for booking")
 	ErrBookingFailed                = errors.New("venue booking failed for some reason")
 	ErrBookingConflict              = errors.New(" booking conflicted with another booking: failed")
 	ErrPaymentNotFound              = errors.New("payment not found")

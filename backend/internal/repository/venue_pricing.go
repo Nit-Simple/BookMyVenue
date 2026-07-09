@@ -124,18 +124,43 @@ func (r *venuePricingRepository) InsertBatch(ctx context.Context, venueID uuid.U
 }
 
 func (r *venuePricingRepository) ActivatePending(ctx context.Context, venueID uuid.UUID) error {
+	// First, collect IDs of currently pending (inactive) rows
+	rows, err := r.DB.Query(ctx, `SELECT id FROM venue_pricing WHERE venue_id = $1 AND is_active = false`, venueID)
+	if err != nil {
+		return fmt.Errorf("failed to query pending pricing: %w", err)
+	}
+	defer rows.Close()
+
+	var pendingIDs []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("failed to scan pending id: %w", err)
+		}
+		pendingIDs = append(pendingIDs, id)
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("failed to iterate pending rows: %w", err)
+	}
+
+	if len(pendingIDs) == 0 {
+		return fmt.Errorf("no pending pricing found for venue")
+	}
+
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
+	// Deactivate all currently active pricing
 	_, err = tx.Exec(ctx, `UPDATE venue_pricing SET is_active = false WHERE venue_id = $1 AND is_active = true`, venueID)
 	if err != nil {
 		return fmt.Errorf("failed to deactivate active pricing: %w", err)
 	}
 
-	_, err = tx.Exec(ctx, `UPDATE venue_pricing SET is_active = true WHERE venue_id = $1 AND is_active = false`, venueID)
+	// Activate only the rows that were pending before the transaction
+	_, err = tx.Exec(ctx, `UPDATE venue_pricing SET is_active = true WHERE id = ANY($1)`, pendingIDs)
 	if err != nil {
 		return fmt.Errorf("failed to activate pending pricing: %w", err)
 	}

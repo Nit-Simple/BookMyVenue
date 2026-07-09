@@ -21,14 +21,21 @@ type MediaService struct {
 	logger    *slog.Logger
 }
 
-func NewMediaService(cfg *config.Config, mediaRepo domain.VenueMediaRepository, logger *slog.Logger) *MediaService {
-	cld, _ := cloudinary.NewFromParams(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)
+func NewMediaService(cfg *config.Config, mediaRepo domain.VenueMediaRepository, logger *slog.Logger) (*MediaService, error) {
+	cld, err := cloudinary.NewFromParams(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)
+	if err != nil {
+		return nil, fmt.Errorf("cloudinary init: %w", err)
+	}
+
+	cld.Config.API.Timeout = 30
+	cld.Config.API.UploadTimeout = 60
+
 	return &MediaService{
 		cfg:       cfg,
 		cld:       cld,
 		mediaRepo: mediaRepo,
 		logger:    logger,
-	}
+	}, nil
 }
 
 func (s *MediaService) Upload(ctx context.Context, venueID uuid.UUID, file io.Reader, filename string, primary bool, sortOrder int32) (*domain.VenueMedia, error) {

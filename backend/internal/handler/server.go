@@ -11,7 +11,9 @@ import (
 	"syscall"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
+	"github.com/Nit-Simple/BookMyVenue/internal/domain"
 	authservice "github.com/Nit-Simple/BookMyVenue/internal/services/authService"
+	bookingservice "github.com/Nit-Simple/BookMyVenue/internal/services/bookingService"
 	mediaService "github.com/Nit-Simple/BookMyVenue/internal/services/mediaService"
 	razorpayService "github.com/Nit-Simple/BookMyVenue/internal/services/razorpayService"
 	venueservice "github.com/Nit-Simple/BookMyVenue/internal/services/venueService"
@@ -29,10 +31,12 @@ type Server struct {
 	authService     *authservice.AuthService
 	venueService    *venueservice.VenueService
 	razorpayService *razorpayService.RazorpayService
+	bookingService  *bookingservice.BookingService
 	mediaService    *mediaService.MediaService
+	idempotencyRepo domain.IdempotencyRepository
 }
 
-func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client, authService *authservice.AuthService, venueService *venueservice.VenueService, razorpayService *razorpayService.RazorpayService, mediaService *mediaService.MediaService) *Server {
+func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache *redis.Client, authService *authservice.AuthService, venueService *venueservice.VenueService, razorpayService *razorpayService.RazorpayService, mediaService *mediaService.MediaService, idempotencyRepo domain.IdempotencyRepository, bookingService *bookingservice.BookingService) *Server {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -44,7 +48,9 @@ func NewServer(cfg *config.Config, db *pgxpool.Pool, logger *slog.Logger, cache 
 		authService:     authService,
 		venueService:    venueService,
 		razorpayService: razorpayService,
+		bookingService:  bookingService,
 		mediaService:    mediaService,
+		idempotencyRepo: idempotencyRepo,
 	}
 	r := gin.New()
 
