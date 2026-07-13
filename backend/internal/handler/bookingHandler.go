@@ -147,6 +147,116 @@ func (s *Server) listBookingsHandler(c *gin.Context) {
 	})
 }
 
+func (s *Server) listManagerBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	var statusFilters []*domain.BookingStatus
+	if statusStr := c.Query("status"); statusStr != "" {
+		for _, s := range strings.Split(statusStr, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				st := domain.BookingStatus(s)
+				statusFilters = append(statusFilters, &st)
+			}
+		}
+	}
+
+	bookings, total, err := s.bookingService.ListManagerBookings(ctx, userID, statusFilters, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) listManagerUpcomingBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	bookings, total, err := s.bookingService.ListManagerUpcomingBookings(ctx, userID, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager upcoming bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list upcoming bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) listManagerOngoingBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	bookings, total, err := s.bookingService.ListManagerOngoingBookings(ctx, userID, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager ongoing bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list ongoing bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
 func (s *Server) getBookingByIDHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 

@@ -555,3 +555,263 @@ func (r *bookingRepository) ConfirmBooking(
 	// Case 3: Success!
 	return &booking, nil
 }
+
+func (r *bookingRepository) GetByOwner(ctx context.Context, ownerID uuid.UUID, statuses []*domain.BookingStatus, limit, offset int) ([]*domain.Booking, int64, error) {
+	countQuery := `SELECT COUNT(*) FROM bookings b JOIN venue v ON v.venue_id = b.venue_id WHERE v.owner_id = $1`
+	countArgs := []any{ownerID}
+
+	if len(statuses) > 0 {
+		countQuery += " AND b.status = ANY($2)"
+		strStatuses := make([]string, len(statuses))
+		for i, s := range statuses {
+			if s != nil {
+				strStatuses[i] = string(*s)
+			}
+		}
+		countArgs = append(countArgs, strStatuses)
+	}
+
+	var total int64
+	err := r.DB.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count owner bookings: %w", err)
+	}
+
+	if total == 0 {
+		return []*domain.Booking{}, 0, nil
+	}
+
+	dataQuery := `
+        SELECT
+            b.id, b.venue_id, b.user_id, b.payment_id,
+            b.start_time, b.end_time, b.time_range, b.booking_date,
+            b.total_amount, b.currency, b.status,
+            b.cancellation_reason, b.cancelled_at, b.cancelled_by,
+            b.booking_reference, b.special_requests, b.guest_count,
+            b.created_at, b.updated_at
+        FROM bookings b
+        JOIN venue v ON v.venue_id = b.venue_id
+        WHERE v.owner_id = $1
+    `
+	dataArgs := []any{ownerID}
+	argIndex := 2
+
+	if len(statuses) > 0 {
+		dataQuery += fmt.Sprintf(" AND b.status = ANY($%d)", argIndex)
+		strStatuses := make([]string, len(statuses))
+		for i, s := range statuses {
+			if s != nil {
+				strStatuses[i] = string(*s)
+			}
+		}
+		dataArgs = append(dataArgs, strStatuses)
+		argIndex++
+	}
+
+	dataQuery += fmt.Sprintf(" ORDER BY b.start_time DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+	dataArgs = append(dataArgs, limit, offset)
+
+	rows, err := r.DB.Query(ctx, dataQuery, dataArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch owner bookings: %w", err)
+	}
+	defer rows.Close()
+
+	bookings := make([]*domain.Booking, 0, limit)
+	for rows.Next() {
+		var b domain.Booking
+		err := rows.Scan(
+			&b.ID,
+			&b.VenueID,
+			&b.UserID,
+			&b.PaymentID,
+			&b.StartTime,
+			&b.EndTime,
+			&b.TimeRange,
+			&b.BookingDate,
+			&b.TotalAmount,
+			&b.Currency,
+			&b.Status,
+			&b.CancellationReason,
+			&b.CancelledAt,
+			&b.CancelledBy,
+			&b.BookingReference,
+			&b.SpecialRequests,
+			&b.GuestCount,
+			&b.CreatedAt,
+			&b.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan booking: %w", err)
+		}
+		bookings = append(bookings, &b)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return bookings, total, nil
+}
+
+func (r *bookingRepository) GetUpcomingByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*domain.Booking, int64, error) {
+	countQuery := `
+        SELECT COUNT(*)
+        FROM bookings b
+        JOIN venue v ON v.venue_id = b.venue_id
+        WHERE v.owner_id = $1
+          AND b.start_time > NOW()
+          AND b.status IN ('PENDING', 'CONFIRMED')
+    `
+
+	var total int64
+	err := r.DB.QueryRow(ctx, countQuery, ownerID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count upcoming owner bookings: %w", err)
+	}
+
+	if total == 0 {
+		return []*domain.Booking{}, 0, nil
+	}
+
+	dataQuery := `
+        SELECT
+            b.id, b.venue_id, b.user_id, b.payment_id,
+            b.start_time, b.end_time, b.time_range, b.booking_date,
+            b.total_amount, b.currency, b.status,
+            b.cancellation_reason, b.cancelled_at, b.cancelled_by,
+            b.booking_reference, b.special_requests, b.guest_count,
+            b.created_at, b.updated_at
+        FROM bookings b
+        JOIN venue v ON v.venue_id = b.venue_id
+        WHERE v.owner_id = $1
+          AND b.start_time > NOW()
+          AND b.status IN ('PENDING', 'CONFIRMED')
+        ORDER BY b.start_time ASC
+        LIMIT $2 OFFSET $3
+    `
+
+	rows, err := r.DB.Query(ctx, dataQuery, ownerID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch upcoming owner bookings: %w", err)
+	}
+	defer rows.Close()
+
+	bookings := make([]*domain.Booking, 0, limit)
+	for rows.Next() {
+		var b domain.Booking
+		err := rows.Scan(
+			&b.ID,
+			&b.VenueID,
+			&b.UserID,
+			&b.PaymentID,
+			&b.StartTime,
+			&b.EndTime,
+			&b.TimeRange,
+			&b.BookingDate,
+			&b.TotalAmount,
+			&b.Currency,
+			&b.Status,
+			&b.CancellationReason,
+			&b.CancelledAt,
+			&b.CancelledBy,
+			&b.BookingReference,
+			&b.SpecialRequests,
+			&b.GuestCount,
+			&b.CreatedAt,
+			&b.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan booking: %w", err)
+		}
+		bookings = append(bookings, &b)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return bookings, total, nil
+}
+
+func (r *bookingRepository) GetOngoingByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*domain.Booking, int64, error) {
+	countQuery := `
+        SELECT COUNT(*)
+        FROM bookings b
+        JOIN venue v ON v.venue_id = b.venue_id
+        WHERE v.owner_id = $1
+          AND b.start_time <= NOW()
+          AND b.end_time > NOW()
+          AND b.status IN ('PENDING', 'CONFIRMED')
+    `
+
+	var total int64
+	err := r.DB.QueryRow(ctx, countQuery, ownerID).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count ongoing owner bookings: %w", err)
+	}
+
+	if total == 0 {
+		return []*domain.Booking{}, 0, nil
+	}
+
+	dataQuery := `
+        SELECT
+            b.id, b.venue_id, b.user_id, b.payment_id,
+            b.start_time, b.end_time, b.time_range, b.booking_date,
+            b.total_amount, b.currency, b.status,
+            b.cancellation_reason, b.cancelled_at, b.cancelled_by,
+            b.booking_reference, b.special_requests, b.guest_count,
+            b.created_at, b.updated_at
+        FROM bookings b
+        JOIN venue v ON v.venue_id = b.venue_id
+        WHERE v.owner_id = $1
+          AND b.start_time <= NOW()
+          AND b.end_time > NOW()
+          AND b.status IN ('PENDING', 'CONFIRMED')
+        ORDER BY b.start_time ASC
+        LIMIT $2 OFFSET $3
+    `
+
+	rows, err := r.DB.Query(ctx, dataQuery, ownerID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to fetch ongoing owner bookings: %w", err)
+	}
+	defer rows.Close()
+
+	bookings := make([]*domain.Booking, 0, limit)
+	for rows.Next() {
+		var b domain.Booking
+		err := rows.Scan(
+			&b.ID,
+			&b.VenueID,
+			&b.UserID,
+			&b.PaymentID,
+			&b.StartTime,
+			&b.EndTime,
+			&b.TimeRange,
+			&b.BookingDate,
+			&b.TotalAmount,
+			&b.Currency,
+			&b.Status,
+			&b.CancellationReason,
+			&b.CancelledAt,
+			&b.CancelledBy,
+			&b.BookingReference,
+			&b.SpecialRequests,
+			&b.GuestCount,
+			&b.CreatedAt,
+			&b.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan booking: %w", err)
+		}
+		bookings = append(bookings, &b)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return bookings, total, nil
+}

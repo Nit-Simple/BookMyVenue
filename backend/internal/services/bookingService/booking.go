@@ -335,6 +335,18 @@ func (s *BookingService) ListUserBookings(ctx context.Context, userID uuid.UUID,
 	return s.bookingRepo.GetByUser(ctx, userID, statuses, limit, offset)
 }
 
+func (s *BookingService) ListManagerBookings(ctx context.Context, ownerID uuid.UUID, statuses []*domain.BookingStatus, limit, offset int) ([]*domain.Booking, int64, error) {
+	return s.bookingRepo.GetByOwner(ctx, ownerID, statuses, limit, offset)
+}
+
+func (s *BookingService) ListManagerUpcomingBookings(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*domain.Booking, int64, error) {
+	return s.bookingRepo.GetUpcomingByOwner(ctx, ownerID, limit, offset)
+}
+
+func (s *BookingService) ListManagerOngoingBookings(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*domain.Booking, int64, error) {
+	return s.bookingRepo.GetOngoingByOwner(ctx, ownerID, limit, offset)
+}
+
 func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, startTime, endTime time.Time) (*domain.AvailabilityCheckResponse, error) {
 	vid, err := uuid.Parse(venueID)
 	if err != nil {

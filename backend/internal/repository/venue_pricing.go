@@ -172,6 +172,14 @@ func (r *venuePricingRepository) ActivatePending(ctx context.Context, venueID uu
 	return nil
 }
 
+func (r *venuePricingRepository) DeactivateActive(ctx context.Context, venueID uuid.UUID) error {
+	_, err := r.DB.Exec(ctx, `UPDATE venue_pricing SET is_active = false WHERE venue_id = $1 AND is_active = true`, venueID)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate active pricing: %w", err)
+	}
+	return nil
+}
+
 func (r *venuePricingRepository) DeletePending(ctx context.Context, venueID uuid.UUID) error {
 	_, err := r.DB.Exec(ctx, `DELETE FROM venue_pricing WHERE venue_id = $1 AND is_active = false`, venueID)
 	if err != nil {

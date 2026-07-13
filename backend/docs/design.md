@@ -358,8 +358,9 @@ All manager routes require: `Authorization: Bearer <token>` + role `venue_manage
   Handler:  venue.go:466 (createManagerVenuePricingHandler)
   Auth:     venue_manager
   Body:     [{ price_per_hour, is_weekend, currency, start_date, end_date? }]
-  Success:  201 → VenuePricing[] (inactive pending rows)
-    Also creates PRICING_UPDATE application
+  Success:  201 → VenuePricing[] (active pricing)
+    Previous active pricing is deactivated; new pricing takes effect immediately.
+    Existing bookings are not affected (their total_amount is already stored).
   Failures:
     400 → invalid venue_id, empty array, invalid JSON
     401 → unauthorized
@@ -413,9 +414,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
   Auth:     admin
   Body:     { notes? }
   Success:  200 → { application_id, venue_id, onboarding_status, status }
-    For NEW_VENUE: venue → APPROVED, app → APPROVED
-    For PRICING_UPDATE: activates pending pricing, deactivates old,
-    approves venue if still PENDING_APPROVAL
+    Venue → APPROVED, application → APPROVED
   Failures:
     400 → invalid application_id
     401 → unauthorized
@@ -429,8 +428,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
   Auth:     admin
   Body:     { notes }  (required, rejection reason)
   Success:  200 → { application_id, venue_id, onboarding_status, status }
-    For NEW_VENUE: venue → REJECTED
-    For PRICING_UPDATE: deletes pending pricing, venue status unchanged
+    Venue → REJECTED, application → REJECTED
   Failures:
     400 → invalid application_id, missing rejection notes
     401 → unauthorized
@@ -514,7 +512,50 @@ All booking routes require: `Authorization: Bearer <token>` (any authenticated r
     500 → service error
 ```
 
-### 4.8 Swagger
+### 4.8 Manager Bookings — `/api/v1/manager/bookings`
+
+All manager booking routes require: `Authorization: Bearer <token>` + role `venue_manager`.
+
+#### GET /api/v1/manager/bookings
+```
+  Handler:  bookingHandler.go (listManagerBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?status=CONFIRMED,PENDING&limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns all bookings for venues owned by the manager.
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/upcoming
+```
+  Handler:  bookingHandler.go (listManagerUpcomingBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns future bookings (start_time > now, PENDING/CONFIRMED only).
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/ongoing
+```
+  Handler:  bookingHandler.go (listManagerOngoingBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns currently active bookings (now between start_time and end_time, PENDING/CONFIRMED only).
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+### 4.9 Swagger
 
 ```
 GET /swagger/*any
@@ -546,6 +587,7 @@ Per-group middleware:
 | `/api/v1/bookings` | RequireAuth |
 | `/api/v1/bookings POST` (create) | RequireAuth + IdempotencyKey |
 | `/api/v1/bookings/:id/confirm` | RequireAuth + IdempotencyKey |
+| `/api/v1/manager/bookings/*` | RequireAuth + RequireRoles(venue_manager) |
 
 ---
 
@@ -695,32 +737,20 @@ sequenceDiagram
 
 ### 8.3 Pricing Update Flow
 
+Pricing changes take effect immediately without admin approval.
+
 ```mermaid
 sequenceDiagram
     actor M as Manager
-    actor A as Admin
     participant B as Backend
     participant DB as PostgreSQL
 
     M->>B: POST /manager/venues/:id/pricing
-    B->>DB: Delete old pending pricing rows
-    B->>DB: Insert new pricing (is_active=false)
-    B->>DB: Create PRICING_UPDATE application
-    B-->>M: 201 pricing[]
-
-    Note over A,B: Approve path
-    A->>B: PATCH /admin/applications/:id/approve
-    B->>DB: Collect pending pricing IDs
     B->>DB: Deactivate current active pricing
-    B->>DB: Activate pending pricing (is_active=true)
-    B->>DB: Approve venue if still PENDING_APPROVAL
-    B-->>A: 200
-
-    Note over A,B: Reject path
-    A->>B: PATCH /admin/applications/:id/reject
-    B->>DB: Delete pending pricing rows
-    B->>DB: Application → REJECTED (venue status unchanged)
-    B-->>A: 200
+    B->>DB: Insert new pricing (is_active=true)
+    B-->>M: 201 pricing[] (active)
+    Note over M: New prices apply to future bookings immediately.
+    Note over M: Existing confirmed bookings retain their stored total_amount.
 ```
 
 ### 8.4 Booking + Payment Flow
@@ -833,7 +863,7 @@ sequenceDiagram
 | 008 | `idempotency_keys` | Idempotency keys for safe retries |
 | 009 | `venue_media` | Venue images (Cloudinary URL, primary flag, sort order) |
 | 010 | — | Add FK from bookings.payment_id to payments.id |
-| 011 | `venue_applications` | Onboarding + pricing change applications (type, status) |
+| 011 | `venue_applications` | Onboarding applications (type, status) |
 | 012 | — | Add cancelled_by column to bookings |
 
 ---

@@ -169,16 +169,16 @@ func (s *VenueService) SubmitVenuePricing(ctx context.Context, venueID, ownerID 
 		return nil, errors.New("venue does not belong to user")
 	}
 
-	// Remove old pending pricing before inserting new set
-	if err := s.venuePricingRepo.DeletePending(ctx, venueID); err != nil {
-		return nil, fmt.Errorf("delete old pending pricing: %w", err)
+	// Deactivate current active pricing so new pricing takes effect immediately
+	if err := s.venuePricingRepo.DeactivateActive(ctx, venueID); err != nil {
+		return nil, fmt.Errorf("deactivate active pricing: %w", err)
 	}
 
-	if err := s.venuePricingRepo.InsertBatch(ctx, venueID, pricing, false); err != nil {
-		return nil, fmt.Errorf("insert pending pricing: %w", err)
+	if err := s.venuePricingRepo.InsertBatch(ctx, venueID, pricing, true); err != nil {
+		return nil, fmt.Errorf("insert pricing: %w", err)
 	}
 
-	return s.venuePricingRepo.GetByVenue(ctx, venueID, false)
+	return s.venuePricingRepo.GetByVenue(ctx, venueID, true)
 }
 
 // -------- venue application methods --------

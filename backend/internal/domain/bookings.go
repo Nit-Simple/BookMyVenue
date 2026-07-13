@@ -30,6 +30,15 @@ type BookingRepository interface {
 
 	// ConfirmBooking updates a booking to CONFIRMED and sets payment_id.
 	ConfirmBooking(ctx context.Context, id uuid.UUID, paymentID uuid.UUID) (*Booking, error)
+
+	// GetByOwner fetches bookings for all venues owned by a manager (paginated, with optional status filter).
+	GetByOwner(ctx context.Context, ownerID uuid.UUID, statuses []*BookingStatus, limit, offset int) ([]*Booking, int64, error)
+
+	// GetUpcomingByOwner fetches future bookings (start_time > now, active statuses only) for venues owned by a manager.
+	GetUpcomingByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*Booking, int64, error)
+
+	// GetOngoingByOwner fetches currently active bookings (start_time <= now < end_time, active statuses only) for venues owned by a manager.
+	GetOngoingByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*Booking, int64, error)
 }
 
 type CreateBookingRequest struct {

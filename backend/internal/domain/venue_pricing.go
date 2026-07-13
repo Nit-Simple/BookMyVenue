@@ -25,5 +25,6 @@ type VenuePricingRepository interface {
 	GetByVenues(ctx context.Context, venueIDs []uuid.UUID, activeOnly bool) (map[uuid.UUID][]VenuePricing, error)
 	InsertBatch(ctx context.Context, venueID uuid.UUID, pricing []VenuePricing, isActive bool) error
 	ActivatePending(ctx context.Context, venueID uuid.UUID) error
+	DeactivateActive(ctx context.Context, venueID uuid.UUID) error
 	DeletePending(ctx context.Context, venueID uuid.UUID) error
 }

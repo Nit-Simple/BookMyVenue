@@ -65,5 +65,15 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 		bookings.GET("/:booking_id", s.getBookingByIDHandler)
 		bookings.DELETE("/:booking_id", s.cancelBookingHandler)
 	}
+
+	// Manager booking views
+	managerBookings := r.Group("/api/v1/manager/bookings")
+	managerBookings.Use(middlewares.RequireAuth(s.config.JWTPublicKey))
+	managerBookings.Use(middlewares.RequireRoles(domain.VenueManager))
+	{
+		managerBookings.GET("", s.listManagerBookingsHandler)
+		managerBookings.GET("/upcoming", s.listManagerUpcomingBookingsHandler)
+		managerBookings.GET("/ongoing", s.listManagerOngoingBookingsHandler)
+	}
 }
 
