@@ -74,6 +74,8 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 		managerBookings.GET("", s.listManagerBookingsHandler)
 		managerBookings.GET("/upcoming", s.listManagerUpcomingBookingsHandler)
 		managerBookings.GET("/ongoing", s.listManagerOngoingBookingsHandler)
+		managerBookings.GET("/venue/:venue_id", s.listManagerVenueBookingsHandler)
+		managerBookings.GET("/:booking_id", s.getManagerBookingDetailHandler)
 	}
 }
 

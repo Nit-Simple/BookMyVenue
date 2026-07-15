@@ -39,6 +39,15 @@ type BookingRepository interface {
 
 	// GetOngoingByOwner fetches currently active bookings (start_time <= now < end_time, active statuses only) for venues owned by a manager.
 	GetOngoingByOwner(ctx context.Context, ownerID uuid.UUID, limit, offset int) ([]*Booking, int64, error)
+
+	// GetVenueBookingsForManager fetches paginated bookings for a specific venue
+	// enriched with venue name and user contact details. Ownership enforced.
+	GetVenueBookingsForManager(ctx context.Context, venueID, ownerID uuid.UUID, statuses []*BookingStatus, limit, offset int) ([]*ManagerBookingItem, int64, error)
+
+	// GetManagerBookingDetail fetches full booking details for a specific booking,
+	// including venue name, user contact info, and payment details.
+	// Ownership is enforced via ownerID.
+	GetManagerBookingDetail(ctx context.Context, bookingID, ownerID uuid.UUID) (*ManagerBookingDetail, error)
 }
 
 type CreateBookingRequest struct {
@@ -210,4 +219,46 @@ type AvailabilityCheckResponse struct {
 	Available bool   `json:"available"`
 	Status    string `json:"status"` // "AVAILABLE", "VENUE_NOT_FOUND", "OUTSIDE_OPERATING_HOURS", "CONFLICT_EXISTS"
 	Message   string `json:"message,omitempty"`
+}
+
+type ManagerBookingItem struct {
+	ID               uuid.UUID `json:"id"`
+	VenueID          uuid.UUID `json:"venue_id"`
+	VenueName        string    `json:"venue_name"`
+	UserID           uuid.UUID `json:"user_id"`
+	UserEmail        string    `json:"user_email"`
+	UserPhone        string    `json:"user_phone"`
+	StartTime        time.Time `json:"start_time"`
+	EndTime          time.Time `json:"end_time"`
+	TotalAmount      string    `json:"total_amount"`
+	Currency         string    `json:"currency"`
+	Status           string    `json:"status"`
+	GuestCount       int32     `json:"guest_count"`
+	BookingReference string    `json:"booking_reference"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+type ManagerBookingDetail struct {
+	ID                 uuid.UUID  `json:"id"`
+	VenueID            uuid.UUID  `json:"venue_id"`
+	VenueName          string     `json:"venue_name"`
+	UserID             uuid.UUID  `json:"user_id"`
+	UserEmail          string     `json:"user_email"`
+	UserPhone          string     `json:"user_phone"`
+	StartTime          time.Time  `json:"start_time"`
+	EndTime            time.Time  `json:"end_time"`
+	TotalAmount        string     `json:"total_amount"`
+	Currency           string     `json:"currency"`
+	Status             string     `json:"status"`
+	CancellationReason *string    `json:"cancellation_reason,omitempty"`
+	CancelledAt        *time.Time `json:"cancelled_at,omitempty"`
+	BookingReference   string     `json:"booking_reference"`
+	SpecialRequests    *string    `json:"special_requests,omitempty"`
+	GuestCount         int32      `json:"guest_count"`
+	PaymentID          *string    `json:"payment_id,omitempty"`
+	RazorpayOrderID    *string    `json:"razorpay_order_id,omitempty"`
+	RazorpayPaymentID  *string    `json:"razorpay_payment_id,omitempty"`
+	PaymentStatus      *string    `json:"payment_status,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }

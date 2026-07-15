@@ -555,6 +555,42 @@ All manager booking routes require: `Authorization: Bearer <token>` + role `venu
     500 → database error
 ```
 
+#### GET /api/v1/manager/bookings/venue/:venue_id
+```
+  Handler:  bookingHandler.go (listManagerVenueBookingsHandler)
+  Auth:     venue_manager
+  Param:    venue_id (UUID)
+  Query:    ?status=CONFIRMED,PENDING&limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: ManagerBookingItem[], total, limit, offset }
+    Each item includes: booking_id, venue_id, venue_name, user_id,
+    user_email, user_phone, start_time, end_time, total_amount,
+    currency, status, guest_count, booking_reference, created_at.
+    Ownership is enforced server-side (venue must belong to the manager).
+  Failures:
+    400 → invalid venue_id
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/:booking_id
+```
+  Handler:  bookingHandler.go (getManagerBookingDetailHandler)
+  Auth:     venue_manager
+  Param:    booking_id (UUID)
+  Success:  200 → ManagerBookingDetail
+    Returns full booking details including venue_name, user_email,
+    user_phone, payment status (razorpay_order_id, razorpay_payment_id,
+    payment_status), special_requests, cancellation info, timestamps.
+    Ownership enforced (booking's venue must belong to the manager).
+  Failures:
+    400 → invalid booking_id
+    401 → unauthorized
+    403 → wrong role
+    404 → booking not found
+    500 → database error
+```
+
 ### 4.9 Swagger
 
 ```
