@@ -303,7 +303,7 @@ func (r *bookingRepository) GetVenueBookingsForManager(ctx context.Context, venu
 	dataQuery := `
         SELECT
             b.id, b.venue_id, v.venue_name,
-            b.user_id, u.email, u.phone,
+            b.user_id, u.full_name, u.email, u.phone,
             b.start_time, b.end_time,
             b.total_amount, b.currency, b.status,
             b.guest_count, b.booking_reference, b.created_at
@@ -341,7 +341,7 @@ func (r *bookingRepository) GetVenueBookingsForManager(ctx context.Context, venu
 		var item domain.ManagerBookingItem
 		if err := rows.Scan(
 			&item.ID, &item.VenueID, &item.VenueName,
-			&item.UserID, &item.UserEmail, &item.UserPhone,
+			&item.UserID, &item.UserName, &item.UserEmail, &item.UserPhone,
 			&item.StartTime, &item.EndTime,
 			&item.TotalAmount, &item.Currency, &item.Status,
 			&item.GuestCount, &item.BookingReference, &item.CreatedAt,
@@ -362,7 +362,7 @@ func (r *bookingRepository) GetManagerBookingDetail(ctx context.Context, booking
 	query := `
         SELECT
             b.id, b.venue_id, v.venue_name,
-            b.user_id, u.email, u.phone,
+            b.user_id, u.full_name, u.email, u.phone,
             b.start_time, b.end_time,
             b.total_amount, b.currency, b.status,
             b.cancellation_reason, b.cancelled_at,
@@ -379,7 +379,7 @@ func (r *bookingRepository) GetManagerBookingDetail(ctx context.Context, booking
 	var detail domain.ManagerBookingDetail
 	err := r.DB.QueryRow(ctx, query, bookingID, ownerID).Scan(
 		&detail.ID, &detail.VenueID, &detail.VenueName,
-		&detail.UserID, &detail.UserEmail, &detail.UserPhone,
+		&detail.UserID, &detail.UserName, &detail.UserEmail, &detail.UserPhone,
 		&detail.StartTime, &detail.EndTime,
 		&detail.TotalAmount, &detail.Currency, &detail.Status,
 		&detail.CancellationReason, &detail.CancelledAt,

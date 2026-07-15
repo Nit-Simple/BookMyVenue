@@ -32,6 +32,7 @@ func (s *Server) registerHandler(c *gin.Context) {
 		Password: req.Password,
 		Phone:    req.Phone,
 		Role:     domain.Role(req.Role),
+		FullName: req.FullName,
 	}
 
 	userDB, err := s.authService.RegisterUser(ctx, userParam)

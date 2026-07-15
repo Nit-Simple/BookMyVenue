@@ -226,6 +226,7 @@ type ManagerBookingItem struct {
 	VenueID          uuid.UUID `json:"venue_id"`
 	VenueName        string    `json:"venue_name"`
 	UserID           uuid.UUID `json:"user_id"`
+	UserName         string    `json:"user_name"`
 	UserEmail        string    `json:"user_email"`
 	UserPhone        string    `json:"user_phone"`
 	StartTime        time.Time `json:"start_time"`
@@ -243,6 +244,7 @@ type ManagerBookingDetail struct {
 	VenueID            uuid.UUID  `json:"venue_id"`
 	VenueName          string     `json:"venue_name"`
 	UserID             uuid.UUID  `json:"user_id"`
+	UserName           string     `json:"user_name"`
 	UserEmail          string     `json:"user_email"`
 	UserPhone          string     `json:"user_phone"`
 	StartTime          time.Time  `json:"start_time"`

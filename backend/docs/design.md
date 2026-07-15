@@ -194,7 +194,7 @@ GET /health
 ```
   Handler:  authHandler.go:22 (registerHandler)
   Auth:     None
-  Body:     { email, password, phone, role }
+  Body:     { email, password, phone, role, full_name? }
   Success:  201 → UserDB
   Failures:
     400 → invalid JSON body, missing fields, password too short, invalid role
@@ -563,7 +563,7 @@ All manager booking routes require: `Authorization: Bearer <token>` + role `venu
   Query:    ?status=CONFIRMED,PENDING&limit=10&offset=0  (all optional)
   Success:  200 → { bookings: ManagerBookingItem[], total, limit, offset }
     Each item includes: booking_id, venue_id, venue_name, user_id,
-    user_email, user_phone, start_time, end_time, total_amount,
+    user_name, user_email, user_phone, start_time, end_time, total_amount,
     currency, status, guest_count, booking_reference, created_at.
     Ownership is enforced server-side (venue must belong to the manager).
   Failures:
@@ -579,8 +579,8 @@ All manager booking routes require: `Authorization: Bearer <token>` + role `venu
   Auth:     venue_manager
   Param:    booking_id (UUID)
   Success:  200 → ManagerBookingDetail
-    Returns full booking details including venue_name, user_email,
-    user_phone, payment status (razorpay_order_id, razorpay_payment_id,
+    Returns full booking details including venue_name, user_name,
+    user_email, user_phone, payment status (razorpay_order_id, razorpay_payment_id,
     payment_status), special_requests, cancellation info, timestamps.
     Ownership enforced (booking's venue must belong to the manager).
   Failures:
@@ -682,7 +682,7 @@ Per-group middleware:
 
 | Type | File | Key Fields |
 |---|---|---|
-| `UserDB` | `user.go` | ID, Email, HashedPassword, Phone, Role |
+| `UserDB` | `user.go` | ID, Email, HashedPassword, Phone, Role, FullName |
 | `Venue` | `venue.go` | VenueID, OwnerID, OnboardingStatus, Location, VenueName, City, State |
 | `VenueMedia` | `venue_media.go` | MediaID, VenueID, URL, Primary, SortOrder |
 | `VenuePricing` | `venue_pricing.go` | ID, VenueID, PricePerHour, IsWeekend, IsActive, StartDate, EndDate |
@@ -885,11 +885,11 @@ sequenceDiagram
 
 ## 10. Database Schema (Migrations)
 
-12 migration files in `internal/repository/migrations/`:
+13 migration files in `internal/repository/migrations/`:
 
 | # | Table | Purpose |
 |---|---|---|
-| 001 | `users` | Core user records (email, password hash, phone, role) |
+| 001 | `users` | Core user records (email, password hash, phone, role) — full_name added in 013 |
 | 002 | `user_identities` | Additional user metadata |
 | 003 | `sessions` | Refresh token sessions (bcrypt hash, expiry) |
 | 004 | `venues` | Venue records (location as PostGIS geography, onboarding status) |
@@ -901,6 +901,7 @@ sequenceDiagram
 | 010 | — | Add FK from bookings.payment_id to payments.id |
 | 011 | `venue_applications` | Onboarding applications (type, status) |
 | 012 | — | Add cancelled_by column to bookings |
+| 013 | — | Add full_name column to users |
 
 ---
 
