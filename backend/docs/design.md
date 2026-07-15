@@ -178,7 +178,14 @@ All configuration is loaded from environment variables (`.env`) in `internal/con
 
 Every route with happy path (success response) and all failure paths (status code + condition).
 
-### 4.1 Health
+| Audience | Sections | Route Group | Purpose |
+|---|---|---|---|
+| **Public** | 4.1, 4.2, 4.3, 4.4, 4.9 | `/health`, `/api/v1/auth/*`, `/api/v1/venues/*`, `/api/v1/webhooks/razorpay`, `/swagger/*` | Health check, register/login, browse venues, webhooks, API docs |
+| **User** (any auth) | 4.7 | `/api/v1/bookings/*` | Create/confirm/list/cancel own bookings |
+| **Venue Manager** | 4.5, 4.8 | `/api/v1/manager/venues/*`, `/api/v1/manager/bookings/*` | Manage venues/pricing, view venue bookings |
+| **Admin** | 4.6 | `/api/v1/admin/*` | List all venues, approve/reject applications |
+
+### 4.1 Health [Public]
 
 ```
 GET /health
@@ -188,7 +195,7 @@ GET /health
   Failures: 503 → database unreachable
 ```
 
-### 4.2 Auth — `/api/v1/auth`
+### 4.2 Auth — `/api/v1/auth` [Public]
 
 #### POST /api/v1/auth/register
 ```
@@ -234,7 +241,7 @@ GET /health
     500 → repository error
 ```
 
-### 4.3 Public Venues — `/api/v1/venues`
+### 4.3 Public Venues — `/api/v1/venues` [Public]
 
 #### GET /api/v1/venues
 ```
@@ -258,7 +265,7 @@ GET /health
     500 → database error
 ```
 
-### 4.4 Razorpay Webhook — `/api/v1/webhooks/razorpay`
+### 4.4 Razorpay Webhook — `/api/v1/webhooks/razorpay` [Public]
 
 #### POST /api/v1/webhooks/razorpay
 ```
@@ -272,7 +279,7 @@ GET /health
     401 → invalid/missing webhook signature
 ```
 
-### 4.5 Manager Venues — `/api/v1/manager/venues`
+### 4.5 Manager Venues — `/api/v1/manager/venues` [Manager]
 
 All manager routes require: `Authorization: Bearer <token>` + role `venue_manager`.
 
@@ -367,7 +374,7 @@ All manager routes require: `Authorization: Bearer <token>` + role `venue_manage
     500 → database error
 ```
 
-### 4.6 Admin — `/api/v1/admin`
+### 4.6 Admin — `/api/v1/admin` [Admin]
 
 All admin routes require: `Authorization: Bearer <token>` + role `admin`.
 
@@ -436,7 +443,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
     500 → database/service error
 ```
 
-### 4.7 Bookings — `/api/v1/bookings`
+### 4.7 Bookings — `/api/v1/bookings` [User]
 
 All booking routes require: `Authorization: Bearer <token>` (any authenticated role).
 
@@ -512,7 +519,7 @@ All booking routes require: `Authorization: Bearer <token>` (any authenticated r
     500 → service error
 ```
 
-### 4.8 Manager Bookings — `/api/v1/manager/bookings`
+### 4.8 Manager Bookings — `/api/v1/manager/bookings` [Manager]
 
 All manager booking routes require: `Authorization: Bearer <token>` + role `venue_manager`.
 
@@ -591,7 +598,7 @@ All manager booking routes require: `Authorization: Bearer <token>` + role `venu
     500 → database error
 ```
 
-### 4.9 Swagger
+### 4.9 Swagger [Public]
 
 ```
 GET /swagger/*any
