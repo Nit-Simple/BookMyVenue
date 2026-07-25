@@ -78,7 +78,7 @@ func (r *venueApplicationRepository) GetByID(ctx context.Context, id uuid.UUID) 
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("venue application not found: %w", err)
+			return nil, fmt.Errorf("get venue application: %w", domain.ErrApplicationNotFound)
 		}
 		return nil, fmt.Errorf("failed to get venue application: %w", err)
 	}
@@ -206,7 +206,7 @@ func (r *venueApplicationRepository) UpdateStatus(ctx context.Context, id uuid.U
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("venue application not found: %w", err)
+			return nil, fmt.Errorf("update venue application status: %w", domain.ErrApplicationNotFound)
 		}
 		return nil, fmt.Errorf("failed to update venue application status: %w", err)
 	}

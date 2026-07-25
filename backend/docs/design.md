@@ -693,7 +693,7 @@ Per-group middleware:
 | `Venue` | `venue.go` | VenueID, OwnerID, OnboardingStatus, Location, VenueName, City, State |
 | `VenueMedia` | `venue_media.go` | MediaID, VenueID, URL, Primary, SortOrder |
 | `VenuePricing` | `venue_pricing.go` | ID, VenueID, PricePerHour, IsWeekend, IsActive, StartDate, EndDate |
-| `VenueApplication` | `venue_application.go` | ApplicationID, VenueID, OwnerID, Type (NEW_VENUE / PRICING_UPDATE), Status |
+| `VenueApplication` | `venue_application.go` | ApplicationID, VenueID, OwnerID, Type (NEW_VENUE), Status |
 | `Booking` | `bookings.go` | ID, VenueID, UserID, StartTime, EndTime, Status, TotalAmount, BookingReference |
 | `Payment` | `payments.go` | ID, BookingID, RazorpayOrderID, RazorpayPaymentID, Amount, Status |
 
@@ -703,7 +703,7 @@ Per-group middleware:
 |---|---|
 | `Role` | `user`, `venue_manager`, `admin` |
 | `OnboardingStatus` | `PENDING_APPROVAL`, `APPROVED`, `REJECTED` |
-| `ApplicationType` | `NEW_VENUE`, `PRICING_UPDATE` |
+| `ApplicationType` | `NEW_VENUE` |
 | `ApplicationStatus` | `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED` |
 | `BookingStatus` | `PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`, `NO_SHOW` |
 | `PaymentStatus` | `PENDING`, `AUTHORIZED`, `CAPTURED`, `FAILED`, `REFUNDED` |
@@ -906,7 +906,7 @@ sequenceDiagram
 | 008 | `idempotency_keys` | Idempotency keys for safe retries |
 | 009 | `venue_media` | Venue images (Cloudinary URL, primary flag, sort order) |
 | 010 | — | Add FK from bookings.payment_id to payments.id |
-| 011 | `venue_applications` | Onboarding applications (type, status) |
+| 011 | `venue_application` | Onboarding applications (type, status) |
 | 012 | — | Add cancelled_by column to bookings |
 | 013 | — | Add full_name column to users |
 

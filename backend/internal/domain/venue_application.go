@@ -19,8 +19,7 @@ const (
 type ApplicationType string
 
 const (
-	AppTypeNewVenue      ApplicationType = "NEW_VENUE"
-	AppTypePricingUpdate ApplicationType = "PRICING_UPDATE"
+	AppTypeNewVenue ApplicationType = "NEW_VENUE"
 )
 
 type VenueApplication struct {

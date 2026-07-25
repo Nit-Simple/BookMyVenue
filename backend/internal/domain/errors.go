@@ -24,6 +24,7 @@ var (
 	ErrPaymentAlreadyCaptured       = errors.New("payment has already been captured")
 	ErrPaymentRefundFailed          = errors.New("payment refund update failed")
 	ErrVenueMediaNotFound           = errors.New("venue media not found")
+	ErrApplicationNotFound          = errors.New("application not found")
 	ErrMediaUploadFailed            = errors.New("media upload failed")
 	ErrMediaDeleteFailed            = errors.New("media delete failed")
 	ErrIdempotencyConflict          = errors.New("idempotency key exists but is still pending")

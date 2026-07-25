@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
@@ -15,6 +16,13 @@ func (s *Server) listAdminApplicationsHandler(c *gin.Context) {
 	status := c.Query("status")
 	if status == "" {
 		status = "PENDING_REVIEW"
+	}
+
+	switch status {
+	case "PENDING_REVIEW", "APPROVED", "REJECTED", "CANCELLED":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
+		return
 	}
 
 	apps, err := s.venueService.ListApplications(ctx, domain.ApplicationStatus(status))
@@ -56,6 +64,10 @@ func (s *Server) getApplicationByIDHandler(c *gin.Context) {
 
 	app, err := s.venueService.GetApplicationByID(ctx, appID)
 	if err != nil {
+		if errors.Is(err, domain.ErrApplicationNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
 		s.logger.Error("failed to get application", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get application"})
 		return
@@ -79,16 +91,19 @@ func (s *Server) approveApplicationByIDHandler(c *gin.Context) {
 	}
 
 	var req domain.ApproveRejectRequest
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
 
 	result, err := s.venueService.ApproveApplication(ctx, appID, adminUUID, req.Notes)
 	if err != nil {
+		if errors.Is(err, domain.ErrApplicationNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
 		s.logger.Error("failed to approve application", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve application"})
-		return
-	}
-	if result == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "application not found"})
 		return
 	}
 
@@ -122,12 +137,12 @@ func (s *Server) rejectApplicationByIDHandler(c *gin.Context) {
 
 	result, err := s.venueService.RejectApplication(ctx, appID, adminUUID, req.Notes)
 	if err != nil {
+		if errors.Is(err, domain.ErrApplicationNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
 		s.logger.Error("failed to reject application", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reject application"})
-		return
-	}
-	if result == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "application not found"})
 		return
 	}
 
