@@ -17,12 +17,12 @@ import type {
  */
 export const profileApi = {
   async listVenues(): Promise<VenueListItem[]> {
-    const { data } = await api.get<VenueListItem[]>(endpoints.venues.list);
+    const { data } = await api.get<VenueListItem[]>(endpoints.venues.list, { realApi: true });
     return data ?? [];
   },
 
   async getVenue(id: string): Promise<VenueDetail> {
-    const { data } = await api.get<VenueDetail>(endpoints.venues.detail(id));
+    const { data } = await api.get<VenueDetail>(endpoints.venues.detail(id), { realApi: true });
     return data;
   },
 
@@ -36,17 +36,18 @@ export const profileApi = {
     files.forEach((file) => form.append('media', file));
     const { data } = await api.post<VenueDetail>(endpoints.venues.create, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      realApi: true,
     });
     return data;
   },
 
   async updateVenue(id: string, patch: Partial<CreateVenueRequest>): Promise<VenueDetail> {
-    const { data } = await api.patch<VenueDetail>(endpoints.venues.update(id), patch);
+    const { data } = await api.patch<VenueDetail>(endpoints.venues.update(id), patch, { realApi: true });
     return data;
   },
 
   async listApplications(): Promise<VenueApplication[]> {
-    const { data } = await api.get<VenueApplication[]>(endpoints.venues.applications);
+    const { data } = await api.get<VenueApplication[]>(endpoints.venues.applications, { realApi: true });
     return data ?? [];
   },
 };

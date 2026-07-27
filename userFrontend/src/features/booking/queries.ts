@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   bookingApi,
   type CreateBookingPayload,
-  type PayPayload,
 } from './api';
+import type { PayPayload } from './api';
 
 export const bookingKeys = {
   all: ['bookings'] as const,
@@ -38,6 +38,18 @@ export function useCreateBooking() {
     mutationFn: (payload: CreateBookingPayload) => bookingApi.create(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: bookingKeys.list }),
   });
+}
+
+export function useConfirmPayment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, ...payload }: { id: string; razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) =>
+            bookingApi.confirm(id, payload),
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: bookingKeys.list });
+            qc.invalidateQueries({ queryKey: bookingKeys.detail(res.id) });
+        },
+    });
 }
 
 export function usePayBooking() {

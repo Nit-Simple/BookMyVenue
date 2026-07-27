@@ -29,6 +29,8 @@ export const endpoints = {
     cancel: (id: string) => `/bookings/${id}/cancel`,
     pay: (id: string) => `/bookings/${id}/payments`,
     invoice: (id: string) => `/bookings/${id}/invoice`,
+        confirm: (id: string) => `/bookings/${id}/confirm`,  // ← NEW
+
   },
   reviews: {
     create: '/reviews',

@@ -26,19 +26,20 @@ export interface VenueFilters {
 export const adminApi = {
   async listVenues(filters: VenueFilters = {}): Promise<VenueListItem[]> {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
-    const { data } = await api.get<VenueListItem[]>(endpoints.admin.venues, { params });
+    const { data } = await api.get<VenueListItem[]>(endpoints.admin.venues, { params, realApi: true });
     return data ?? [];
   },
 
   async listApplications(status: ApplicationStatus): Promise<VenueApplication[]> {
     const { data } = await api.get<VenueApplication[]>(endpoints.admin.applications, {
       params: { status },
+      realApi: true
     });
     return data ?? [];
   },
 
   async getApplication(id: string): Promise<VenueApplication> {
-    const { data } = await api.get<VenueApplication>(endpoints.admin.application(id));
+    const { data } = await api.get<VenueApplication>(endpoints.admin.application(id), { realApi: true });
     return data;
   },
 
@@ -46,6 +47,7 @@ export const adminApi = {
     const { data } = await api.patch<ApplicationDecisionResult>(
       endpoints.admin.approve(applicationId),
       { notes },
+      { realApi: true }
     );
     return data;
   },
@@ -54,6 +56,7 @@ export const adminApi = {
     const { data } = await api.patch<ApplicationDecisionResult>(
       endpoints.admin.reject(applicationId),
       { notes },
+      { realApi: true }
     );
     return data;
   },

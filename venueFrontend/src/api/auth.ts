@@ -15,20 +15,20 @@ import type { LoginRequest, RegisterRequest, TokenResponse } from '@/types';
  */
 export const authApi = {
   async login(payload: LoginRequest): Promise<TokenResponse> {
-    const { data } = await api.post<TokenResponse>(endpoints.auth.login, payload);
+    const { data } = await api.post<TokenResponse>(endpoints.auth.login, payload, { realApi: true });
     return data;
   },
 
   async register(payload: RegisterRequest): Promise<TokenResponse> {
     // Force the venue-manager role on the portal.
-    await api.post(endpoints.auth.register, { ...payload, role: 'venue_manager' });
+    await api.post(endpoints.auth.register, { ...payload, role: 'venue_manager' }, { realApi: true });
     // Backend register returns no tokens → log in to obtain them.
     return this.login({ email: payload.email, password: payload.password });
   },
 
   async logout(refreshToken: string | null): Promise<void> {
     try {
-      await api.post(endpoints.auth.logout, { refresh_token: refreshToken });
+      await api.post(endpoints.auth.logout, { refresh_token: refreshToken }, { realApi: true });
     } catch {
       // Logout is best-effort; local session is cleared regardless.
     }
