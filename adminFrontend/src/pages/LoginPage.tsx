@@ -16,7 +16,7 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 export default function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as { from?: { pathname: string }; error?: string } | null;
@@ -24,7 +24,13 @@ export default function LoginPage() {
 
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { email: '', password: '' } });
 
-  if (isAuthenticated) return <Navigate to={from ?? '/dashboard'} replace />;
+  // Only admins are auto-redirected in. An authenticated NON-admin must NOT be
+  // sent to /dashboard — ProtectedRoute would bounce them right back to /login,
+  // creating an infinite redirect loop. They stay here and can sign out.
+  if (isAuthenticated && user?.role === 'admin') {
+    return <Navigate to={from ?? '/dashboard'} replace />;
+  }
+  const wrongAccount = isAuthenticated && user?.role !== 'admin';
 
   const onSubmit = async (values: Values) => {
     try {
@@ -55,10 +61,24 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {state?.error === 'not-an-admin' && (
-            <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-              That account is not an administrator.
+          {(state?.error === 'not-an-admin' || wrongAccount) && (
+            <div className="mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {user?.email ? `“${user.email}” is not an administrator. ` : 'That account is not an administrator. '}
+                  Sign in with an admin account.
+                </span>
+              </div>
+              {wrongAccount && (
+                <button
+                  type="button"
+                  onClick={() => logout()}
+                  className="mt-2 font-semibold underline hover:text-red-800"
+                >
+                  Sign out of the current account
+                </button>
+              )}
             </div>
           )}
 

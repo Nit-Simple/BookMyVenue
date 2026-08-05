@@ -34,8 +34,16 @@ export const profileApi = {
     const form = new FormData();
     form.append('data', JSON.stringify(payload));
     files.forEach((file) => form.append('media', file));
+    // Let axios/the browser set `multipart/form-data; boundary=...` from the
+    // FormData. Setting Content-Type manually omits the boundary, which makes
+    // the backend fail to parse the multipart body. `undefined` overrides the
+    // axios instance default of `application/json` so the boundary is generated.
+    // Uploading several images that the backend forwards to Cloudinary can take
+    // well over the default 15s axios timeout — a timeout aborts the request
+    // (Firefox: NS_BINDING_ABORTED). Give uploads a generous 2-minute window.
     const { data } = await api.post<VenueDetail>(endpoints.venues.create, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: { 'Content-Type': undefined },
+      timeout: 120000,
     });
     return data;
   },

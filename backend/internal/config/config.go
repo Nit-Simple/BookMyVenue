@@ -69,7 +69,8 @@ func Load() (*Config, error) {
 	cfg.Host = getEnv("HOST", "0.0.0.0")
 	cfg.Port = getEnv("PORT", "8081")
 	cfg.Environment = getEnv("ENVIRONMENT", "development")
-	cfg.AllowedOrigins = getCSV("ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"})
+	cfg.AllowedOrigins = getCSV("ALLOWED_ORIGINS", []string{"http://localhost:5173",
+	 "http://localhost:3000","http://localhost:5175","http://localhost:5176"})
 
 	// typed parsing
 	cfg.ReadTimeout = getDuration("READ_TIMEOUT", 30*time.Second)
