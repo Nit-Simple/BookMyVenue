@@ -12,7 +12,7 @@ import type { CreatePricingItem, VenuePricing } from '@/types';
  */
 export const pricingApi = {
   async getPricing(venueId: string): Promise<VenuePricing[]> {
-    const { data } = await api.get<VenuePricing[]>(endpoints.venues.pricing(venueId));
+    const { data } = await api.get<VenuePricing[]>(endpoints.venues.pricing(venueId), { realApi: true });
     return data ?? [];
   },
 
@@ -28,7 +28,7 @@ export const pricingApi = {
       start_date: dayjs().format('YYYY-MM-DD'),
       end_date: null,
     };
-    const { data } = await api.post<VenuePricing>(endpoints.venues.pricing(venueId), item);
+    const { data } = await api.post<VenuePricing>(endpoints.venues.pricing(venueId), item, { realApi: true });
     return data;
   },
 };

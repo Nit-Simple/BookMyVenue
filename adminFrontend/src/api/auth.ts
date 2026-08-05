@@ -12,13 +12,13 @@ import type { LoginRequest, TokenResponse } from '@/types';
  */
 export const authApi = {
   async login(payload: LoginRequest): Promise<TokenResponse> {
-    const { data } = await api.post<TokenResponse>(endpoints.auth.login, payload);
+    const { data } = await api.post<TokenResponse>(endpoints.auth.login, payload, { realApi: true });
     return data;
   },
 
   async logout(refreshToken: string | null): Promise<void> {
     try {
-      await api.post(endpoints.auth.logout, { refresh_token: refreshToken });
+      await api.post(endpoints.auth.logout, { refresh_token: refreshToken }, { realApi: true });
     } catch {
       // best-effort; local session cleared regardless
     }

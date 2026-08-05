@@ -497,10 +497,6 @@ func (s *Server) createManagerVenuePricingHandler(c *gin.Context) {
 		return
 	}
 
-	if _, err := s.venueService.CreateVenueApplication(ctx, venueID, ownerID, domain.AppTypePricingUpdate); err != nil {
-		s.logger.Error("failed to create pricing application", "err", err)
-	}
-
 	c.JSON(http.StatusCreated, result)
 }
 

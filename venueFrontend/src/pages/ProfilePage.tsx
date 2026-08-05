@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
-import { Building2, Info, Lock, Pencil, Save, X } from 'lucide-react';
+import { Building2, Info, Lock, Pencil, Plus, Save, X } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { MediaUploader, type UploadFile } from '@/components/common/MediaUploader';
@@ -25,7 +25,7 @@ import { useApplications, useCreateVenue, usePricing, useUpdateVenue } from '@/h
 import { getErrorMessage } from '@/api/axios';
 import type { CreateVenueRequest } from '@/types';
 
-function OnboardingForm() {
+function OnboardingForm({ onSuccess }: { onSuccess?: () => void }) {
   const form = useForm<VenueFormValues>({
     resolver: zodResolver(venueSchema),
     defaultValues: DEFAULT_VENUE_FORM,
@@ -61,6 +61,7 @@ function OnboardingForm() {
     try {
       await createVenue.mutateAsync({ payload, files: files.map((f) => f.file) });
       toast.success('Venue submitted for approval!');
+      onSuccess?.();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to create venue.'));
     }
@@ -120,6 +121,7 @@ export default function ProfilePage() {
   const pricingQuery = usePricing(venueId);
   const applicationsQuery = useApplications();
   const [editing, setEditing] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const form = useForm<VenueFormValues>({
     resolver: zodResolver(venueSchema),
@@ -133,8 +135,9 @@ export default function ProfilePage() {
 
   if (isLoading) return <PageLoader label="Loading your venue…" />;
   if (isError) return <ErrorState onRetry={() => refetch()} />;
-  if (!hasVenue || !venue) return <OnboardingForm />;
-
+  if (!hasVenue || !venue || showOnboarding) {
+    return <OnboardingForm onSuccess={() => setShowOnboarding(false)} />;
+  }
   const canEdit = venue.onboarding_status === 'PENDING_APPROVAL';
 
   const onSave = async (values: VenueFormValues) => {
@@ -155,6 +158,13 @@ export default function ProfilePage() {
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge kind="onboarding" status={venue.onboarding_status} />
+            <Button
+              variant="outline"
+              onClick={() => setShowOnboarding(true)}
+              leftIcon={<Plus className="h-4 w-4" />}
+            >
+              Add new venue
+            </Button>
             {canEdit &&
               (editing ? (
                 <>

@@ -18,6 +18,7 @@ type UserCreate struct {
 	Role     Role   `json:"role"`
 	Password string `json:"password" validate:"min:6,max:20"`
 	Phone    string `json:"phone,omitempty"`
+	FullName string `json:"full_name,omitempty"`
 }
 
 type Sessions struct {
@@ -35,6 +36,7 @@ type RegisterRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=20"`
 	Phone    string `json:"phone" binding:"required"`
 	Role     string `json:"role"`
+	FullName string `json:"full_name"`
 }
 
 type LoginRequest struct {
@@ -56,6 +58,7 @@ type UserDB struct {
 	HashedPassword string    `db:"hashed_password"`
 	Phone          string    `db:"phone,omitempty"`
 	Role           string    `db:"role"`
+	FullName       string    `db:"full_name"`
 	CreatedAt      time.Time `db:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at"`
 }

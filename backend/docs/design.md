@@ -178,7 +178,14 @@ All configuration is loaded from environment variables (`.env`) in `internal/con
 
 Every route with happy path (success response) and all failure paths (status code + condition).
 
-### 4.1 Health
+| Audience | Sections | Route Group | Purpose |
+|---|---|---|---|
+| **Public** | 4.1, 4.2, 4.3, 4.4, 4.9 | `/health`, `/api/v1/auth/*`, `/api/v1/venues/*`, `/api/v1/webhooks/razorpay`, `/swagger/*` | Health check, register/login, browse venues, webhooks, API docs |
+| **User** (any auth) | 4.7 | `/api/v1/bookings/*` | Create/confirm/list/cancel own bookings |
+| **Venue Manager** | 4.5, 4.8 | `/api/v1/manager/venues/*`, `/api/v1/manager/bookings/*` | Manage venues/pricing, view venue bookings |
+| **Admin** | 4.6 | `/api/v1/admin/*` | List all venues, approve/reject applications |
+
+### 4.1 Health [Public]
 
 ```
 GET /health
@@ -188,13 +195,13 @@ GET /health
   Failures: 503 → database unreachable
 ```
 
-### 4.2 Auth — `/api/v1/auth`
+### 4.2 Auth — `/api/v1/auth` [Public]
 
 #### POST /api/v1/auth/register
 ```
   Handler:  authHandler.go:22 (registerHandler)
   Auth:     None
-  Body:     { email, password, phone, role }
+  Body:     { email, password, phone, role, full_name? }
   Success:  201 → UserDB
   Failures:
     400 → invalid JSON body, missing fields, password too short, invalid role
@@ -234,7 +241,7 @@ GET /health
     500 → repository error
 ```
 
-### 4.3 Public Venues — `/api/v1/venues`
+### 4.3 Public Venues — `/api/v1/venues` [Public]
 
 #### GET /api/v1/venues
 ```
@@ -258,7 +265,7 @@ GET /health
     500 → database error
 ```
 
-### 4.4 Razorpay Webhook — `/api/v1/webhooks/razorpay`
+### 4.4 Razorpay Webhook — `/api/v1/webhooks/razorpay` [Public]
 
 #### POST /api/v1/webhooks/razorpay
 ```
@@ -272,7 +279,7 @@ GET /health
     401 → invalid/missing webhook signature
 ```
 
-### 4.5 Manager Venues — `/api/v1/manager/venues`
+### 4.5 Manager Venues — `/api/v1/manager/venues` [Manager]
 
 All manager routes require: `Authorization: Bearer <token>` + role `venue_manager`.
 
@@ -358,15 +365,16 @@ All manager routes require: `Authorization: Bearer <token>` + role `venue_manage
   Handler:  venue.go:466 (createManagerVenuePricingHandler)
   Auth:     venue_manager
   Body:     [{ price_per_hour, is_weekend, currency, start_date, end_date? }]
-  Success:  201 → VenuePricing[] (inactive pending rows)
-    Also creates PRICING_UPDATE application
+  Success:  201 → VenuePricing[] (active pricing)
+    Previous active pricing is deactivated; new pricing takes effect immediately.
+    Existing bookings are not affected (their total_amount is already stored).
   Failures:
     400 → invalid venue_id, empty array, invalid JSON
     401 → unauthorized
     500 → database error
 ```
 
-### 4.6 Admin — `/api/v1/admin`
+### 4.6 Admin — `/api/v1/admin` [Admin]
 
 All admin routes require: `Authorization: Bearer <token>` + role `admin`.
 
@@ -413,9 +421,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
   Auth:     admin
   Body:     { notes? }
   Success:  200 → { application_id, venue_id, onboarding_status, status }
-    For NEW_VENUE: venue → APPROVED, app → APPROVED
-    For PRICING_UPDATE: activates pending pricing, deactivates old,
-    approves venue if still PENDING_APPROVAL
+    Venue → APPROVED, application → APPROVED
   Failures:
     400 → invalid application_id
     401 → unauthorized
@@ -429,8 +435,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
   Auth:     admin
   Body:     { notes }  (required, rejection reason)
   Success:  200 → { application_id, venue_id, onboarding_status, status }
-    For NEW_VENUE: venue → REJECTED
-    For PRICING_UPDATE: deletes pending pricing, venue status unchanged
+    Venue → REJECTED, application → REJECTED
   Failures:
     400 → invalid application_id, missing rejection notes
     401 → unauthorized
@@ -438,7 +443,7 @@ All admin routes require: `Authorization: Bearer <token>` + role `admin`.
     500 → database/service error
 ```
 
-### 4.7 Bookings — `/api/v1/bookings`
+### 4.7 Bookings — `/api/v1/bookings` [User]
 
 All booking routes require: `Authorization: Bearer <token>` (any authenticated role).
 
@@ -514,7 +519,86 @@ All booking routes require: `Authorization: Bearer <token>` (any authenticated r
     500 → service error
 ```
 
-### 4.8 Swagger
+### 4.8 Manager Bookings — `/api/v1/manager/bookings` [Manager]
+
+All manager booking routes require: `Authorization: Bearer <token>` + role `venue_manager`.
+
+#### GET /api/v1/manager/bookings
+```
+  Handler:  bookingHandler.go (listManagerBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?status=CONFIRMED,PENDING&limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns all bookings for venues owned by the manager.
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/upcoming
+```
+  Handler:  bookingHandler.go (listManagerUpcomingBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns future bookings (start_time > now, PENDING/CONFIRMED only).
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/ongoing
+```
+  Handler:  bookingHandler.go (listManagerOngoingBookingsHandler)
+  Auth:     venue_manager
+  Query:    ?limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: Booking[], total, limit, offset }
+    Returns currently active bookings (now between start_time and end_time, PENDING/CONFIRMED only).
+  Failures:
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/venue/:venue_id
+```
+  Handler:  bookingHandler.go (listManagerVenueBookingsHandler)
+  Auth:     venue_manager
+  Param:    venue_id (UUID)
+  Query:    ?status=CONFIRMED,PENDING&limit=10&offset=0  (all optional)
+  Success:  200 → { bookings: ManagerBookingItem[], total, limit, offset }
+    Each item includes: booking_id, venue_id, venue_name, user_id,
+    user_name, user_email, user_phone, start_time, end_time, total_amount,
+    currency, status, guest_count, booking_reference, created_at.
+    Ownership is enforced server-side (venue must belong to the manager).
+  Failures:
+    400 → invalid venue_id
+    401 → unauthorized
+    403 → wrong role
+    500 → database error
+```
+
+#### GET /api/v1/manager/bookings/:booking_id
+```
+  Handler:  bookingHandler.go (getManagerBookingDetailHandler)
+  Auth:     venue_manager
+  Param:    booking_id (UUID)
+  Success:  200 → ManagerBookingDetail
+    Returns full booking details including venue_name, user_name,
+    user_email, user_phone, payment status (razorpay_order_id, razorpay_payment_id,
+    payment_status), special_requests, cancellation info, timestamps.
+    Ownership enforced (booking's venue must belong to the manager).
+  Failures:
+    400 → invalid booking_id
+    401 → unauthorized
+    403 → wrong role
+    404 → booking not found
+    500 → database error
+```
+
+### 4.9 Swagger [Public]
 
 ```
 GET /swagger/*any
@@ -546,6 +630,7 @@ Per-group middleware:
 | `/api/v1/bookings` | RequireAuth |
 | `/api/v1/bookings POST` (create) | RequireAuth + IdempotencyKey |
 | `/api/v1/bookings/:id/confirm` | RequireAuth + IdempotencyKey |
+| `/api/v1/manager/bookings/*` | RequireAuth + RequireRoles(venue_manager) |
 
 ---
 
@@ -604,11 +689,11 @@ Per-group middleware:
 
 | Type | File | Key Fields |
 |---|---|---|
-| `UserDB` | `user.go` | ID, Email, HashedPassword, Phone, Role |
+| `UserDB` | `user.go` | ID, Email, HashedPassword, Phone, Role, FullName |
 | `Venue` | `venue.go` | VenueID, OwnerID, OnboardingStatus, Location, VenueName, City, State |
 | `VenueMedia` | `venue_media.go` | MediaID, VenueID, URL, Primary, SortOrder |
 | `VenuePricing` | `venue_pricing.go` | ID, VenueID, PricePerHour, IsWeekend, IsActive, StartDate, EndDate |
-| `VenueApplication` | `venue_application.go` | ApplicationID, VenueID, OwnerID, Type (NEW_VENUE / PRICING_UPDATE), Status |
+| `VenueApplication` | `venue_application.go` | ApplicationID, VenueID, OwnerID, Type (NEW_VENUE), Status |
 | `Booking` | `bookings.go` | ID, VenueID, UserID, StartTime, EndTime, Status, TotalAmount, BookingReference |
 | `Payment` | `payments.go` | ID, BookingID, RazorpayOrderID, RazorpayPaymentID, Amount, Status |
 
@@ -618,7 +703,7 @@ Per-group middleware:
 |---|---|
 | `Role` | `user`, `venue_manager`, `admin` |
 | `OnboardingStatus` | `PENDING_APPROVAL`, `APPROVED`, `REJECTED` |
-| `ApplicationType` | `NEW_VENUE`, `PRICING_UPDATE` |
+| `ApplicationType` | `NEW_VENUE` |
 | `ApplicationStatus` | `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED` |
 | `BookingStatus` | `PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`, `NO_SHOW` |
 | `PaymentStatus` | `PENDING`, `AUTHORIZED`, `CAPTURED`, `FAILED`, `REFUNDED` |
@@ -695,32 +780,20 @@ sequenceDiagram
 
 ### 8.3 Pricing Update Flow
 
+Pricing changes take effect immediately without admin approval.
+
 ```mermaid
 sequenceDiagram
     actor M as Manager
-    actor A as Admin
     participant B as Backend
     participant DB as PostgreSQL
 
     M->>B: POST /manager/venues/:id/pricing
-    B->>DB: Delete old pending pricing rows
-    B->>DB: Insert new pricing (is_active=false)
-    B->>DB: Create PRICING_UPDATE application
-    B-->>M: 201 pricing[]
-
-    Note over A,B: Approve path
-    A->>B: PATCH /admin/applications/:id/approve
-    B->>DB: Collect pending pricing IDs
     B->>DB: Deactivate current active pricing
-    B->>DB: Activate pending pricing (is_active=true)
-    B->>DB: Approve venue if still PENDING_APPROVAL
-    B-->>A: 200
-
-    Note over A,B: Reject path
-    A->>B: PATCH /admin/applications/:id/reject
-    B->>DB: Delete pending pricing rows
-    B->>DB: Application → REJECTED (venue status unchanged)
-    B-->>A: 200
+    B->>DB: Insert new pricing (is_active=true)
+    B-->>M: 201 pricing[] (active)
+    Note over M: New prices apply to future bookings immediately.
+    Note over M: Existing confirmed bookings retain their stored total_amount.
 ```
 
 ### 8.4 Booking + Payment Flow
@@ -819,11 +892,11 @@ sequenceDiagram
 
 ## 10. Database Schema (Migrations)
 
-12 migration files in `internal/repository/migrations/`:
+13 migration files in `internal/repository/migrations/`:
 
 | # | Table | Purpose |
 |---|---|---|
-| 001 | `users` | Core user records (email, password hash, phone, role) |
+| 001 | `users` | Core user records (email, password hash, phone, role) — full_name added in 013 |
 | 002 | `user_identities` | Additional user metadata |
 | 003 | `sessions` | Refresh token sessions (bcrypt hash, expiry) |
 | 004 | `venues` | Venue records (location as PostGIS geography, onboarding status) |
@@ -833,8 +906,9 @@ sequenceDiagram
 | 008 | `idempotency_keys` | Idempotency keys for safe retries |
 | 009 | `venue_media` | Venue images (Cloudinary URL, primary flag, sort order) |
 | 010 | — | Add FK from bookings.payment_id to payments.id |
-| 011 | `venue_applications` | Onboarding + pricing change applications (type, status) |
+| 011 | `venue_application` | Onboarding applications (type, status) |
 | 012 | — | Add cancelled_by column to bookings |
+| 013 | — | Add full_name column to users |
 
 ---
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (s *Server) createBookingHandler(c *gin.Context) {
@@ -145,6 +146,195 @@ func (s *Server) listBookingsHandler(c *gin.Context) {
 		"limit":    limit,
 		"offset":   offset,
 	})
+}
+
+func (s *Server) listManagerBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	var statusFilters []*domain.BookingStatus
+	if statusStr := c.Query("status"); statusStr != "" {
+		for _, s := range strings.Split(statusStr, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				st := domain.BookingStatus(s)
+				statusFilters = append(statusFilters, &st)
+			}
+		}
+	}
+
+	bookings, total, err := s.bookingService.ListManagerBookings(ctx, userID, statusFilters, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) listManagerUpcomingBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	bookings, total, err := s.bookingService.ListManagerUpcomingBookings(ctx, userID, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager upcoming bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list upcoming bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) listManagerOngoingBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	bookings, total, err := s.bookingService.ListManagerOngoingBookings(ctx, userID, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager ongoing bookings failed", "owner_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list ongoing bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) listManagerVenueBookingsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	venueID, err := uuid.Parse(c.Param("venue_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	limit := 10
+	offset := 0
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
+		offset = o
+	}
+
+	var statusFilters []*domain.BookingStatus
+	if statusStr := c.Query("status"); statusStr != "" {
+		for _, s := range strings.Split(statusStr, ",") {
+			s = strings.TrimSpace(s)
+			if s != "" {
+				st := domain.BookingStatus(s)
+				statusFilters = append(statusFilters, &st)
+			}
+		}
+	}
+
+	bookings, total, err := s.bookingService.ListManagerVenueBookings(ctx, venueID, userID, statusFilters, limit, offset)
+	if err != nil {
+		s.logger.Error("list manager venue bookings failed", "venue_id", venueID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list venue bookings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"bookings": bookings,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+func (s *Server) getManagerBookingDetailHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	userID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	bookingID, err := uuid.Parse(c.Param("booking_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
+		return
+	}
+
+	detail, err := s.bookingService.GetManagerBookingDetail(ctx, bookingID, userID)
+	if err != nil {
+		s.logger.Error("get manager booking detail failed", "booking_id", bookingID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch booking details"})
+		return
+	}
+	if detail == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, detail)
 }
 
 func (s *Server) getBookingByIDHandler(c *gin.Context) {

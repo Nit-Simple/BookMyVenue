@@ -12,25 +12,17 @@ import {
 } from 'lucide-react';
 import { StepIndicator } from './components/StepIndicator';
 import { PriceSummary } from './components/PriceSummary';
-import {
-  PaymentMethodForm,
-  emptyPaymentDetails,
-  isPaymentValid,
-  type PaymentDetails,
-} from '@/features/payment/PaymentMethodForm';
 import { PaymentProcessing, type PaymentPhase } from '@/features/payment/PaymentProcessing';
-import { Button, Checkbox, EmptyState, PageLoader } from '@/components/ui';
+import { Button, EmptyState, PageLoader } from '@/components/ui';
 import { useBookingDraftStore } from '@/app/store/bookingDraftStore';
 import { useVenue } from '@/features/venues/queries';
-import { useCreateBooking, usePayBooking } from './queries';
+import { useCreateBooking, useConfirmPayment } from './queries';
 import { calculatePricing } from '@/utils/pricing';
 import { CATEGORY_MAP, TIME_SLOTS } from '@/utils/constants';
 import { formatCurrency, formatDateLong, formatTime12h } from '@/utils/format';
 import { getErrorMessage } from '@/api/axios';
 import { useToast } from '@/app/store/uiStore';
-import type { Booking, PaymentType } from '@/types';
-import { cn } from '@/utils/cn';
-
+import type { Booking } from '@/types';
 const STEPS = ['Booking details', 'Payment', 'Confirmation'];
 
 export function BookingPage() {
@@ -41,15 +33,18 @@ export function BookingPage() {
   const { data: venue, isLoading } = useVenue(draft?.venueId);
 
   const createBooking = useCreateBooking();
-  const payBooking = usePayBooking();
+  const confirmPayment = useConfirmPayment();
 
   const [step, setStep] = useState(0);
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [paymentType, setPaymentType] = useState<PaymentType>('full');
-  const [payment, setPayment] = useState<PaymentDetails>(emptyPaymentDetails);
+  const [razorpayInfo, setRazorpayInfo] = useState<{
+    key: string;
+    orderId: string;
+    amountPaise: number;
+    currency: string;
+  } | null>(null);
   const [phase, setPhase] = useState<PaymentPhase>('idle');
   const [payError, setPayError] = useState<string>();
-  const [simulateFailure, setSimulateFailure] = useState(false);
 
   const selectedPackage = venue?.packages.find((p) => p.id === draft?.packageId);
 
@@ -81,10 +76,7 @@ export function BookingPage() {
   }
 
   const slot = TIME_SLOTS.find((s) => s.value === draft.timeSlot) ?? TIME_SLOTS[2];
-  const payAmount =
-    paymentType === 'advance' ? pricing.advanceAmount : pricing.total;
 
-  // Step 1 → create booking, then advance.
   const goToPayment = () => {
     createBooking.mutate(
       {
@@ -99,7 +91,12 @@ export function BookingPage() {
       {
         onSuccess: (b) => {
           setBooking(b);
-          setPaymentType(pricing.advanceEligible ? 'advance' : 'full');
+          setRazorpayInfo({
+            key: b.razorpayKeyId,
+            orderId: b.razorpayOrderId,
+            amountPaise: Math.round(pricing.total * 100),
+            currency: 'INR',
+          });
           setStep(1);
         },
         onError: (err) =>
@@ -109,35 +106,34 @@ export function BookingPage() {
   };
 
   const runPayment = () => {
-    if (!booking) return;
-    setPhase('processing');
-    setPayError(undefined);
-    payBooking.mutate(
-      {
-        id: booking.id,
-        payload: {
-          type: paymentType,
-          method: payment.method,
-          amount: payAmount,
-          forceFail: simulateFailure,
-        },
+    if (!razorpayInfo) return;
+    const rzp = new window.Razorpay({
+      key: razorpayInfo.key,
+      amount: razorpayInfo.amountPaise,
+      currency: razorpayInfo.currency,
+      order_id: razorpayInfo.orderId,
+      handler: (response) => {
+        confirmPayment.mutate(
+          { id: booking!.id, ...response },
+          {
+            onSuccess: () => {
+              setPhase('success');
+              setTimeout(() => {
+                setPhase('idle');
+                setStep(2);
+                clearDraft();
+              }, 1300);
+            },
+            onError: (err) => {
+              setPayError(getErrorMessage(err));
+              setPhase('failed');
+            },
+          },
+        );
       },
-      {
-        onSuccess: (res) => {
-          setPhase('success');
-          setTimeout(() => {
-            setBooking(res.booking);
-            setPhase('idle');
-            setStep(2);
-            clearDraft();
-          }, 1300);
-        },
-        onError: (err) => {
-          setPayError(getErrorMessage(err));
-          setPhase('failed');
-        },
-      },
-    );
+      prefill: { email: '', contact: '' },
+    });
+    rzp.open();
   };
 
   return (
@@ -221,66 +217,60 @@ export function BookingPage() {
       {step === 1 && booking && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
-            {pricing.advanceEligible && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <h3 className="font-semibold text-slate-900">Payment option</h3>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  This is a large event — you can pay an advance now and the balance later.
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <PayOption
-                    selected={paymentType === 'advance'}
-                    onClick={() => setPaymentType('advance')}
-                    title="Pay advance (25%)"
-                    amount={pricing.advanceAmount}
-                    note={`Balance ${formatCurrency(pricing.remainingAmount)} due before the event`}
-                  />
-                  <PayOption
-                    selected={paymentType === 'full'}
-                    onClick={() => setPaymentType('full')}
-                    title="Pay full amount"
-                    amount={pricing.total}
-                    note="Settle everything now — nothing left to pay"
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="mb-4 font-semibold text-slate-900">Payment method</h3>
-              <PaymentMethodForm value={payment} onChange={setPayment} />
-              <div className="mt-4 rounded-xl bg-amber-50 p-3">
-                <Checkbox
-                  checked={simulateFailure}
-                  onChange={setSimulateFailure}
-                  label={
-                    <span className="text-xs text-amber-800">
-                      Simulate a failed payment (for testing the failure flow)
-                    </span>
-                  }
-                />
-              </div>
+              <h3 className="mb-4 font-semibold text-slate-900">Payment summary</h3>
+              <dl className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Venue price</dt>
+                  <dd className="font-medium text-slate-900">{formatCurrency(pricing.venuePrice)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Guest charges</dt>
+                  <dd className="font-medium text-slate-900">{formatCurrency(pricing.guestCharge)}</dd>
+                </div>
+                {pricing.discount > 0 && (
+                  <div className="flex justify-between text-emerald-600">
+                    <dt>Discount</dt>
+                    <dd>-{formatCurrency(pricing.discount)}</dd>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Service charge</dt>
+                  <dd className="font-medium text-slate-900">{formatCurrency(pricing.serviceCharge)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-500">Tax</dt>
+                  <dd className="font-medium text-slate-900">{formatCurrency(pricing.tax)}</dd>
+                </div>
+                <hr className="border-slate-200" />
+                <div className="flex justify-between text-base font-bold text-slate-900">
+                  <dt>Total</dt>
+                  <dd>{formatCurrency(pricing.total)}</dd>
+                </div>
+              </dl>
             </div>
           </div>
 
           <div className="lg:col-span-1">
             <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="mb-4 font-semibold text-slate-900">Price summary</h3>
-              <PriceSummary pricing={pricing} showAdvance={false} />
+              <h3 className="mb-4 font-semibold text-slate-900">Pay with Razorpay</h3>
+              <p className="mb-4 text-sm text-slate-500">
+                You will be redirected to Razorpay's secure checkout to complete the payment.
+              </p>
               <div className="mt-4 flex items-center justify-between rounded-xl bg-brand-50 px-4 py-3">
-                <span className="text-sm font-medium text-brand-900">Paying now</span>
+                <span className="text-sm font-medium text-brand-900">Total amount</span>
                 <span className="font-display text-lg font-bold text-brand-900">
-                  {formatCurrency(payAmount)}
+                  {formatCurrency(pricing.total)}
                 </span>
               </div>
               <Button
                 fullWidth
                 size="lg"
                 className="mt-4"
-                disabled={!isPaymentValid(payment)}
                 onClick={runPayment}
+                isLoading={confirmPayment.isPending}
               >
-                Pay {formatCurrency(payAmount)}
+                Pay {formatCurrency(pricing.total)}
               </Button>
               <p className="mt-2 text-center text-xs text-slate-400">
                 🔒 Payments are encrypted and secure
@@ -355,7 +345,7 @@ export function BookingPage() {
 
       <PaymentProcessing
         phase={phase}
-        amount={payAmount}
+        amount={pricing.total}
         errorMessage={payError}
         onRetry={runPayment}
         onClose={() => setPhase('idle')}
@@ -386,33 +376,4 @@ function DetailItem({
   );
 }
 
-function PayOption({
-  selected,
-  onClick,
-  title,
-  amount,
-  note,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  title: string;
-  amount: number;
-  note: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'rounded-xl border p-4 text-left transition-colors',
-        selected
-          ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500'
-          : 'border-slate-200 hover:border-slate-300',
-      )}
-    >
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-1 font-display text-xl font-bold text-slate-900">{formatCurrency(amount)}</p>
-      <p className="mt-1 text-xs text-slate-500">{note}</p>
-    </button>
-  );
-}
+

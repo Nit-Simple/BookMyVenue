@@ -58,24 +58,27 @@ func (r *authRepository) CheckRoleByID(ctx context.Context, id string) (bool, er
 // CreateUser inserts a new user record into the users table.
 func (r *authRepository) CreateUser(ctx context.Context, user *domain.UserCreate) (*domain.UserDB, error) {
 	query := `
-		INSERT INTO users (id, email, password, phone, role)
-		VALUES ($1, $2, $3, $4, $5::user_role)
-		RETURNING id, email, password, phone, role, created_at, updated_at
+		INSERT INTO users (id, email, password, phone, role, full_name)
+		VALUES ($1, $2, $3, $4, $5::user_role, $6)
+		RETURNING id, email, password, phone, role, full_name, created_at, updated_at
 	`
 
 	nullPhone := repository.StrToNullString(user.Phone)
 	nullPassword := repository.StrToNullString(user.Password)
+	nullFullName := repository.StrToNullString(user.FullName)
 
 	var userDB domain.UserDB
 	var scannedPhone sql.NullString
 	var scannedPassword sql.NullString
+	var scannedFullName sql.NullString
 
-	err := r.DB.QueryRow(ctx, query, user.ID, user.Email, nullPassword, nullPhone, user.Role).Scan(
+	err := r.DB.QueryRow(ctx, query, user.ID, user.Email, nullPassword, nullPhone, user.Role, nullFullName).Scan(
 		&userDB.ID,
 		&userDB.Email,
 		&scannedPassword,
 		&scannedPhone,
 		&userDB.Role,
+		&scannedFullName,
 		&userDB.CreatedAt,
 		&userDB.UpdatedAt,
 	)
@@ -85,6 +88,7 @@ func (r *authRepository) CreateUser(ctx context.Context, user *domain.UserCreate
 
 	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
 	userDB.Phone = repository.NullStringToStr(scannedPhone)
+	userDB.FullName = repository.NullStringToStr(scannedFullName)
 
 	return &userDB, nil
 }
@@ -94,13 +98,14 @@ func (r *authRepository) CreateUser(ctx context.Context, user *domain.UserCreate
 // FindByID retrieves a user record by their ID.
 func (r *authRepository) FindByID(ctx context.Context, id string) (*domain.UserDB, error) {
 	query := `
-		SELECT id, email, password, phone, role, created_at, updated_at
+		SELECT id, email, password, phone, role, full_name, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 	var userDB domain.UserDB
 	var scannedPhone sql.NullString
 	var scannedPassword sql.NullString
+	var scannedFullName sql.NullString
 
 	err := r.DB.QueryRow(ctx, query, id).Scan(
 		&userDB.ID,
@@ -108,6 +113,7 @@ func (r *authRepository) FindByID(ctx context.Context, id string) (*domain.UserD
 		&scannedPassword,
 		&scannedPhone,
 		&userDB.Role,
+		&scannedFullName,
 		&userDB.CreatedAt,
 		&userDB.UpdatedAt,
 	)
@@ -120,6 +126,7 @@ func (r *authRepository) FindByID(ctx context.Context, id string) (*domain.UserD
 
 	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
 	userDB.Phone = repository.NullStringToStr(scannedPhone)
+	userDB.FullName = repository.NullStringToStr(scannedFullName)
 
 	return &userDB, nil
 }
@@ -127,13 +134,14 @@ func (r *authRepository) FindByID(ctx context.Context, id string) (*domain.UserD
 // FindUserByEmail retrieves a user record by their email address.
 func (r *authRepository) FindUserByEmail(ctx context.Context, email string) (*domain.UserDB, error) {
 	query := `
-		SELECT id, email, password, phone, role, created_at, updated_at
+		SELECT id, email, password, phone, role, full_name, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
 	var userDB domain.UserDB
 	var scannedPhone sql.NullString
 	var scannedPassword sql.NullString
+	var scannedFullName sql.NullString
 
 	err := r.DB.QueryRow(ctx, query, email).Scan(
 		&userDB.ID,
@@ -141,6 +149,7 @@ func (r *authRepository) FindUserByEmail(ctx context.Context, email string) (*do
 		&scannedPassword,
 		&scannedPhone,
 		&userDB.Role,
+		&scannedFullName,
 		&userDB.CreatedAt,
 		&userDB.UpdatedAt,
 	)
@@ -153,6 +162,7 @@ func (r *authRepository) FindUserByEmail(ctx context.Context, email string) (*do
 
 	userDB.HashedPassword = repository.NullStringToStr(scannedPassword)
 	userDB.Phone = repository.NullStringToStr(scannedPhone)
+	userDB.FullName = repository.NullStringToStr(scannedFullName)
 
 	return &userDB, nil
 }
