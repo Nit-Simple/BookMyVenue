@@ -22,6 +22,12 @@ type BookingRepository interface {
 	// GetByVenueAndDateRange fetches bookings for a venue within a date range.
 	GetByVenueAndDateRange(ctx context.Context, venueID uuid.UUID, startDate, endDate time.Time) ([]*Booking, error)
 
+	// CheckVenueOverlap reports whether any active booking overlaps the given time window.
+	CheckVenueOverlap(ctx context.Context, venueID uuid.UUID, start, end time.Time) (bool, error)
+
+	// ExpireStaleBookings cancels all PENDING bookings whose expires_at has passed.
+	ExpireStaleBookings(ctx context.Context) (int64, error)
+
 	// GetVenueDailyBookings fetches bookings for a specific day.
 	GetVenueDailyBookings(ctx context.Context, venueID uuid.UUID, date time.Time) ([]*Booking, error)
 
@@ -95,6 +101,7 @@ type Booking struct {
 	CancellationReason pgtype.Text        `db:"cancellation_reason" json:"cancellation_reason"`
 	CancelledAt        pgtype.Timestamptz `db:"cancelled_at" json:"cancelled_at"`
 	CancelledBy        pgtype.UUID        `db:"cancelled_by" json:"cancelled_by"`
+	ExpiresAt          time.Time          `db:"expires_at" json:"expires_at"`
 
 	BookingReference string `db:"booking_reference" json:"booking_reference"`
 
@@ -194,9 +201,10 @@ type CancelBookingResponse struct {
 }
 
 type AvailabilityCheckRequest struct {
-	VenueID   string    `form:"venue_id" validate:"required,uuid"`
-	StartTime time.Time `form:"start_time" validate:"required"`
-	EndTime   time.Time `form:"end_time" validate:"required"`
+	VenueID    string    `form:"venue_id" validate:"required,uuid"`
+	StartTime  time.Time `form:"start_time" validate:"required"`
+	EndTime    time.Time `form:"end_time" validate:"required"`
+	GuestCount int32     `form:"guest_count"` // optional; 0 = not constrained
 }
 
 func (r *AvailabilityCheckRequest) Validate() error {
@@ -211,6 +219,9 @@ func (r *AvailabilityCheckRequest) Validate() error {
 	}
 	if !r.EndTime.After(r.StartTime) {
 		return errors.New("end_time must be after start_time")
+	}
+	if r.GuestCount < 0 {
+		return errors.New("guest_count must be positive")
 	}
 	return nil
 }

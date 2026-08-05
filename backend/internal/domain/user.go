@@ -55,7 +55,7 @@ type LogoutRequest struct {
 type UserDB struct {
 	ID             string    `db:"id"`
 	Email          string    `db:"email"`
-	HashedPassword string    `db:"hashed_password"`
+	HashedPassword string    `db:"hashed_password" json:"-"`
 	Phone          string    `db:"phone,omitempty"`
 	Role           string    `db:"role"`
 	FullName       string    `db:"full_name"`

@@ -8,7 +8,7 @@ BookMyVenue is a venue booking platform built with Go (Gin) on the backend and R
 
 | Layer | Technology |
 |---|---|
-| Language | Go 1.23 |
+| Language | Go 1.25 |
 | HTTP Framework | Gin |
 | Database | PostgreSQL 16 (PostGIS) |
 | Image Storage | Cloudinary |
@@ -36,7 +36,8 @@ BookMyVenue/
 │   ├── go.mod
 │   ├── cmd/
 │   │   └── server/
-│   │       └── main.go                  # Entry point
+│   │       ├── main.go                  # Entry point
+│   │       └── reaper.go                # PENDING booking expiry reaper goroutine
 │   ├── docs/
 │   │   ├── design.md                    # This file
 │   │   ├── docs.go
@@ -60,6 +61,7 @@ BookMyVenue/
 │   │   │   └── venue_pricing.go         # VenuePricing + PricingRepo interface
 │   │   ├── handler/
 │   │   │   ├── authHandler.go           # Register, Login, Refresh, Logout
+│   │   │   ├── availabilityHandler.go   # Venue availability check
 │   │   │   ├── bookingHandler.go        # CRUD bookings + payment confirm
 │   │   │   ├── healthCheck.go           # Health endpoint
 │   │   │   ├── routes.go                # Route definitions
@@ -112,7 +114,13 @@ BookMyVenue/
 │   │   │       ├── 011_create_venue_application_table.up.sql
 │   │   │       ├── 011_create_venue_application_table.down.sql
 │   │   │       ├── 012_add_cancelled_by_to_bookings.up.sql
-│   │   │       └── 012_add_cancelled_by_to_bookings.down.sql
+│   │   │       ├── 012_add_cancelled_by_to_bookings.down.sql
+│   │   │       ├── 013_add_full_name_to_users.up.sql
+│   │   │       ├── 013_add_full_name_to_users.down.sql
+│   │   │       ├── 014_add_expires_at_to_bookings.up.sql
+│   │   │       ├── 014_add_expires_at_to_bookings.down.sql
+│   │   │       ├── 015_strict_future_booking.up.sql
+│   │   │       └── 015_strict_future_booking.down.sql
 │   │   └── services/
 │   │       ├── authService/
 │   │       │   ├── auth.go              # Registration, password hashing
@@ -171,6 +179,8 @@ All configuration is loaded from environment variables (`.env`) in `internal/con
 | `RazorpayKeyID` | `RAZORPAY_TEST_API_KEY` | string | **Yes** | — |
 | `RazorpayKeySecret` | `RAZORPAY_TEST_API_SECRET` | string | **Yes** | — |
 | `RazorpayWebhookSecret` | `RAZORPAY_TEST_WEBHOOK_SECRET` | string | No | falls back to `RazorpayKeySecret` |
+| `BookingPendingExpiry` | `PENDING_BOOKING_EXPIRY` | duration | No | `30m` |
+| `BookingReaperInterval` | `PENDING_BOOKING_SWEEP_INTERVAL` | duration | No | `5m` |
 
 ---
 
@@ -263,6 +273,39 @@ GET /health
     400 → invalid venue_id (not a UUID)
     404 → venue not found or not APPROVED
     500 → database error
+```
+
+#### GET /api/v1/venues/:venue_id/availability
+```
+  Handler:  availabilityHandler.go:23 (checkVenueAvailabilityHandler)
+  Auth:     None
+  Param:    venue_id (UUID)
+  Query:    start_time (RFC3339), end_time (RFC3339)  — both required
+           guest_count (int, optional — venue capacity check)
+  Success:  200 → AvailabilityCheckResponse
+    { available: bool, status: string, message?: string }
+  Statuses:
+    AVAILABLE               → slot is free, within operating hours, and meets
+                              min-duration/capacity constraints
+    VENUE_NOT_FOUND         → venue missing or not APPROVED
+    OUTSIDE_OPERATING_HOURS → slot outside venue opening/closing hours
+                             (wall-clock, same-day only) or end_time <= start_time
+    CONFLICT_EXISTS         → overlapping active booking exists
+    PAST_TIME               → start_time is in the past
+    BELOW_MIN_DURATION      → slot shorter than the venue's minimum booking duration
+    CAPACITY_EXCEEDED       → guest_count exceeds venue capacity
+  Failures:
+    400 → invalid venue_id, missing/invalid start_time/end_time,
+          or end_time not after start_time
+    500 → database error
+  Notes:
+    - Overlap uses tstzrange && interval comparison (excludes CANCELLED/NO_SHOW),
+      consistent with the booking creation exclusion constraint.
+    - Operating hours are compared using the wall-clock time of the input
+      timestamps; venues are assumed to have same-day (non-overnight) hours.
+      Malformed stored hours fail open (treated as no restriction).
+    - Availability and CreateBooking enforce identical rules (parity):
+      past times, minimum duration, and guest capacity are rejected in both.
 ```
 
 ### 4.4 Razorpay Webhook — `/api/v1/webhooks/razorpay` [Public]
@@ -457,13 +500,19 @@ All booking routes require: `Authorization: Bearer <token>` (any authenticated r
     (includes booking_id, razorpay_order_id, razorpay_key_id,
      total_amount, expires_at)
   Failures:
-    400 → missing/invalid fields, end_time before start_time, guest_count < 1
+    400 → missing/invalid fields, end_time before start_time, guest_count < 1,
+          guest_count exceeds venue capacity (ErrGuestCountExceedsCapacity)
     401 → unauthorized
     403 → venue not approved
     404 → venue not found
     409 → venue not available for requested slot
+    422 → start_time in the past (ErrBookingInPast),
+          slot shorter than venue minimum duration (ErrVenueMinDurationNotMet)
     500 → service error
     409 (idempotency) → duplicate key still pending
+  Notes:
+    - Booking is created in PENDING status and auto-expires via the reaper
+      goroutine after `PENDING_BOOKING_EXPIRY` (default 30m); see section 8.6.
 ```
 
 #### POST /api/v1/bookings/:booking_id/confirm
@@ -477,8 +526,14 @@ All booking routes require: `Authorization: Bearer <token>` (any authenticated r
     400 → missing booking_id, missing required razorpay fields,
           payment verification failed (bad signature)
     401 → unauthorized
-    409 → payment already processed, booking already confirmed
+    409 → payment already processed (FAILED/REFUNDED) or booking in a
+          terminal state that cannot be confirmed
     500 → service error
+  Notes:
+    - Convergent/idempotent: if the booking is already CONFIRMED or the payment
+      already CAPTURED, the request succeeds (200) and re-returns the current
+      booking instead of erroring. This makes the confirm path and the webhook
+      path order-independent (see section 8.4).
 ```
 
 #### GET /api/v1/bookings
@@ -662,6 +717,8 @@ Per-group middleware:
 
 **Webhook flow:** Razorpay POSTs to `/webhooks/razorpay` → backend verifies `X-Razorpay-Signature` using HMAC-SHA256 → processes `payment.captured` / `payment.failed`
 
+**Webhook capture (convergence fix):** on `payment.captured`, the backend marks the payment CAPTURED and confirms the booking only if it is still `PENDING`/`CONFIRMED`/`AUTHORIZED`. If the booking can no longer be confirmed (e.g. already CANCELLED), the payment is refunded synchronously. The webhook is the authoritative proof of capture; a webhook capture is accepted from a `PENDING` or `AUTHORIZED` payment, so it does not race with the confirm endpoint — either path can arrive first and both converge to the same state.
+
 ### 6.3 PostgreSQL (Primary Database)
 
 | Detail | Value |
@@ -669,7 +726,7 @@ Per-group middleware:
 | Library | `github.com/jackc/pgx/v5` (pgxpool) |
 | Extension | PostGIS 3.4 (geography type) |
 | Connection | `DATABASE_URL` env var |
-| Migrations | `golang-migrate/migrate/v4` with 12 migration files |
+| Migrations | `golang-migrate/migrate/v4` with 15 migration files (auto-applied on startup via `//go:embed`) |
 
 ### 6.4 JWT (Ed25519)
 
@@ -679,7 +736,7 @@ Per-group middleware:
 | Algorithm | EdDSA (Ed25519) |
 | Keys | Base64-encoded in `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` |
 | Access token | Short-lived (default 15 min) |
-| Refresh token | Long-lived (default 7 days), stored as bcrypt hash in DB sessions table |
+| Refresh token | Long-lived (default 7 days), stored as a SHA-256 hash in DB sessions table |
 
 ---
 
@@ -824,11 +881,19 @@ sequenceDiagram
     B->>DB: Update booking → CONFIRMED
     B-->>F: 200 Booking (CONFIRMED)
 
-    Note over RZ,DB: Async webhook
+    Note over RZ,DB: Async webhook (may arrive before or after confirm)
     RZ->>B: POST /webhooks/razorpay (payment.captured)
     B->>B: Verify webhook signature
-    B->>DB: Update payment → CAPTURED
+    B->>DB: Payment CAPTURED (from PENDING or AUTHORIZED)
+    B->>DB: Booking → CONFIRMED (only if still confirmable)
+    alt Booking not confirmable (e.g. CANCELLED)
+        B->>RZ: Refund payment synchronously
+        B->>DB: Payment → REFUNDED
+    end
     B-->>RZ: 200 { status: "ok" }
+
+    Note over F,B: Order-independence: confirm and webhook converge.
+    Note over F,B: Confirm succeeds idempotently if payment is already CAPTURED.
 ```
 
 ### 8.5 Image Upload Flow
@@ -856,6 +921,15 @@ sequenceDiagram
     B-->>M: 201 VenueDetail.media[].url
     Note over M: Frontend renders <img src={media.url} />
 ```
+
+### 8.6 PENDING Booking Expiry (Reaper)
+
+Unpaid bookings reserve the venue slot and are released automatically if never confirmed.
+
+- On creation, a PENDING booking is stamped with `expires_at = now + PENDING_BOOKING_EXPIRY` (default 30m).
+- A background goroutine (`cmd/server/reaper.go`) sweeps every `PENDING_BOOKING_SWEEP_INTERVAL` (default 5m), expiring `PENDING` bookings whose `expires_at < now`.
+- Expiry frees the slot, so availability and future booking attempts can claim it.
+- `POST /bookings/:id/confirm` on an expired booking fails (booking no longer confirmable).
 
 ---
 
@@ -892,13 +966,13 @@ sequenceDiagram
 
 ## 10. Database Schema (Migrations)
 
-13 migration files in `internal/repository/migrations/`:
+15 migration files in `internal/repository/migrations/`:
 
 | # | Table | Purpose |
 |---|---|---|
-| 001 | `users` | Core user records (email, password hash, phone, role) — full_name added in 013 |
+| 001 | `users` | Core user records (email, password hash, phone, role) |
 | 002 | `user_identities` | Additional user metadata |
-| 003 | `sessions` | Refresh token sessions (bcrypt hash, expiry) |
+| 003 | `sessions` | Refresh token sessions (SHA-256 hash, expiry) |
 | 004 | `venues` | Venue records (location as PostGIS geography, onboarding status) |
 | 005 | `venue_pricing` | Pricing tiers (price per hour, active flag, date range) |
 | 006 | `bookings` | Booking records (time range as tstzrange, status) |
@@ -909,6 +983,8 @@ sequenceDiagram
 | 011 | `venue_application` | Onboarding applications (type, status) |
 | 012 | — | Add cancelled_by column to bookings |
 | 013 | — | Add full_name column to users |
+| 014 | — | Add expires_at column to bookings (PENDING expiry reaper) |
+| 015 | — | Strict future booking CHECK: `start_time > NOW()` |
 
 ---
 
@@ -930,4 +1006,14 @@ All domain errors are sentinel errors defined in `domain/errors.go`. Handlers ma
 | `ErrBookingFailed` | 404 |
 | `ErrMediaUploadFailed` | 500 |
 | `ErrIdempotencyConflict` | 409 |
+| `ErrBookingInPast` | 422 |
+| `ErrVenueMinDurationNotMet` | 422 |
+| `ErrGuestCountExceedsCapacity` | 400 |
+| `ErrVenueOutsideOperatingHours` | 422 |
+| `ErrBookingValidation` | 400 (DB constraint `23514` mapping) |
+| `ErrForbidden` | 403 (ownership checks at service layer) |
 | Catch-all | 500 |
+
+Service-layer ownership checks (S2) re-verify `ErrForbidden` for venue update,
+venue application creation, and media delete/set-primary — handlers keep the
+fast-fail 403 for immediate rejections.

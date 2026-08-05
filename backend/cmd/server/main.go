@@ -74,12 +74,14 @@ func main() {
 	venueAppRepo := repository.NewVenueApplicationRepository(db)
 	venueSvc := venueservice.NewVenueService(venueRepo, venueMediaRepo, venuePricingRepo, venueAppRepo)
 	razorpaySvc := razorpayService.NewRazorpayService(cfg)
-	mediaSvc, err := mediaService.NewMediaService(cfg, venueMediaRepo, logger)
+	mediaSvc, err := mediaService.NewMediaService(cfg, venueMediaRepo, venueRepo, logger)
 	if err != nil {
 		logger.Error("failed to initialize media service", "err", err)
 		os.Exit(1)
 	}
 	bookingSvc := bookingservice.NewBookingService(bookingRepo, paymentRepo, venueRepo, venuePricingRepo, razorpaySvc, idempotencyRepo, cfg, logger)
+
+	go runBookingReaper(ctx, bookingRepo, logger, cfg.BookingReaperInterval)
 
 	server := handler.NewServer(cfg, db, logger, cache, authSvc, venueSvc, razorpaySvc, mediaSvc, idempotencyRepo, bookingSvc)
 	if err := server.Start(); err != nil {

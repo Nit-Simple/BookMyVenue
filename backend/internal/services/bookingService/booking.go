@@ -82,9 +82,31 @@ func (s *BookingService) HandlePaymentCaptured(ctx context.Context, orderID, pay
 		return nil
 	}
 	if confirmed == nil {
-		s.logger.Error("booking: payment captured but booking not in PENDING state",
-			"order_id", orderID, "payment_id", paymentID,
-			"booking_id", payment.BookingID)
+		booking, err := s.bookingRepo.GetByID(ctx, payment.BookingID)
+		if err != nil {
+			s.logger.Error("booking: failed to fetch booking after capture", "booking_id", payment.BookingID, "error", err)
+			return nil
+		}
+		if booking != nil && booking.Status == domain.BookingStatusConfirmed {
+			s.logger.Info("booking: payment captured and booking already confirmed",
+				"order_id", orderID, "booking_id", payment.BookingID)
+			return nil
+		}
+
+		s.logger.Warn("booking: payment captured but booking cannot be confirmed, issuing refund",
+			"order_id", orderID, "payment_id", paymentID, "booking_id", payment.BookingID)
+
+		refundID, err := s.razorpaySvc.ProcessRefund(ctx, result.Payment.RazorpayPaymentID.String, int64(result.Payment.Amount))
+		if err != nil {
+			s.logger.Error("booking: refund failed after unconfirmable capture", "payment_id", result.Payment.ID, "error", err)
+			return nil
+		}
+		if _, err := s.paymentRepo.UpdateRefund(ctx, result.Payment.ID, refundID, result.Payment.Amount, domain.PaymentStatusRefunded); err != nil {
+			s.logger.Error("booking: refund update failed after unconfirmable capture", "payment_id", result.Payment.ID, "error", err)
+			return nil
+		}
+		s.logger.Info("booking: payment refunded after unconfirmable capture",
+			"order_id", orderID, "payment_id", paymentID, "booking_id", payment.BookingID)
 		return nil
 	}
 
@@ -149,6 +171,22 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		return nil, domain.ErrVenueNotApproved
 	}
 
+	if !withinOperatingHours(venue.OpeningPeriod, venue.ClosingPeriod, startTime, endTime) {
+		return nil, domain.ErrVenueOutsideOperatingHours
+	}
+
+	if !startTime.After(time.Now()) {
+		return nil, domain.ErrBookingInPast
+	}
+
+	if endTime.Sub(startTime) < venue.MinBookingDuration {
+		return nil, domain.ErrVenueMinDurationNotMet
+	}
+
+	if int(req.GuestCount) > venue.SeatingCapacity {
+		return nil, domain.ErrGuestCountExceedsCapacity
+	}
+
 	amountPaise, currency, err := s.CalculatePrice(ctx, req.VenueID, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate price: %w", err)
@@ -169,6 +207,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		BookingReference: generateBookingReference(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
+		ExpiresAt:  time.Now().Add(s.cfg.BookingPendingExpiry),
 	}
 
 	createResult, err := s.bookingRepo.Create(ctx, booking)
@@ -204,7 +243,7 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
-	expiresAt := booking.CreatedAt.Add(24 * time.Hour)
+	expiresAt := booking.ExpiresAt
 
 	return &domain.CreateBookingResponse{
 		BookingID:            bookingID.String(),
@@ -247,19 +286,43 @@ func (s *BookingService) ConfirmPayment(ctx context.Context, bookingID string, u
 		return nil, fmt.Errorf("booking does not belong to user")
 	}
 
+	payment, err := s.paymentRepo.GetByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch payment: %w", err)
+	}
+	if payment == nil || payment.BookingID != bID {
+		return nil, domain.ErrPaymentUpdateConflict
+	}
+
 	result, err := s.paymentRepo.UpdateToAuthorized(ctx, orderID, paymentID, signature)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authorize payment: %w", err)
 	}
+
+	authorized := result.Payment
 	if !result.Updated {
-		return nil, domain.ErrPaymentUpdateConflict
+		capturedPayment, err := s.paymentRepo.GetByOrderID(ctx, orderID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch payment: %w", err)
+		}
+		if capturedPayment == nil || !capturedPayment.IsCaptured() {
+			return nil, domain.ErrPaymentUpdateConflict
+		}
+		authorized = capturedPayment
 	}
 
-	confirmed, err := s.bookingRepo.ConfirmBooking(ctx, bID, result.Payment.ID)
+	confirmed, err := s.bookingRepo.ConfirmBooking(ctx, bID, authorized.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to confirm booking: %w", err)
 	}
 	if confirmed == nil {
+		currentBooking, err := s.bookingRepo.GetByID(ctx, bID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch booking: %w", err)
+		}
+		if currentBooking != nil && currentBooking.Status == domain.BookingStatusConfirmed {
+			return currentBooking, nil
+		}
 		return nil, domain.ErrBookingConflict
 	}
 
@@ -355,7 +418,7 @@ func (s *BookingService) GetManagerBookingDetail(ctx context.Context, bookingID,
 	return s.bookingRepo.GetManagerBookingDetail(ctx, bookingID, ownerID)
 }
 
-func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, startTime, endTime time.Time) (*domain.AvailabilityCheckResponse, error) {
+func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, startTime, endTime time.Time, guestCount int32) (*domain.AvailabilityCheckResponse, error) {
 	vid, err := uuid.Parse(venueID)
 	if err != nil {
 		return &domain.AvailabilityCheckResponse{
@@ -374,6 +437,14 @@ func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, 
 		}, nil
 	}
 
+	if venue.OnboardingStatus != domain.StatusApproved {
+		return &domain.AvailabilityCheckResponse{
+			Available: false,
+			Status:    "VENUE_NOT_FOUND",
+			Message:   "venue not found",
+		}, nil
+	}
+
 	if !endTime.After(startTime) {
 		return &domain.AvailabilityCheckResponse{
 			Available: false,
@@ -382,12 +453,43 @@ func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, 
 		}, nil
 	}
 
-	bookings, err := s.bookingRepo.GetByVenueAndDateRange(ctx, vid, startTime, endTime)
+	if !withinOperatingHours(venue.OpeningPeriod, venue.ClosingPeriod, startTime, endTime) {
+		return &domain.AvailabilityCheckResponse{
+			Available: false,
+			Status:    "OUTSIDE_OPERATING_HOURS",
+			Message:   "requested time slot is outside the venue's operating hours",
+		}, nil
+	}
+
+	if !startTime.After(time.Now()) {
+		return &domain.AvailabilityCheckResponse{
+			Available: false,
+			Status:    "PAST_TIME",
+			Message:   "booking start time cannot be in the past",
+		}, nil
+	}
+
+	if endTime.Sub(startTime) < venue.MinBookingDuration {
+		return &domain.AvailabilityCheckResponse{
+			Available: false,
+			Status:    "BELOW_MIN_DURATION",
+			Message:   "booking duration is below the venue's minimum",
+		}, nil
+	}
+
+	if guestCount > 0 && int(guestCount) > venue.SeatingCapacity {
+		return &domain.AvailabilityCheckResponse{
+			Available: false,
+			Status:    "CAPACITY_EXCEEDED",
+			Message:   "guest count exceeds the venue's seating capacity",
+		}, nil
+	}
+
+	overlap, err := s.bookingRepo.CheckVenueOverlap(ctx, vid, startTime, endTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check availability: %w", err)
 	}
-
-	if len(bookings) > 0 {
+	if overlap {
 		return &domain.AvailabilityCheckResponse{
 			Available: false,
 			Status:    "CONFLICT_EXISTS",
@@ -399,6 +501,31 @@ func (s *BookingService) CheckAvailability(ctx context.Context, venueID string, 
 		Available: true,
 		Status:    "AVAILABLE",
 	}, nil
+}
+
+// withinOperatingHours reports whether the given time window falls entirely within
+// the venue's opening/closing hours using wall-clock comparison (same-day only).
+// Malformed stored hours fail open (treated as no restriction).
+func withinOperatingHours(openingPeriod, closingPeriod string, startTime, endTime time.Time) bool {
+	opening, err1 := time.Parse("15:04", openingPeriod)
+	closing, err2 := time.Parse("15:04", closingPeriod)
+	if err1 != nil || err2 != nil {
+		return true
+	}
+
+	openingMin := opening.Hour()*60 + opening.Minute()
+	closingMin := closing.Hour()*60 + closing.Minute()
+
+	startMin := startTime.Hour()*60 + startTime.Minute()
+	endMin := endTime.Hour()*60 + endTime.Minute()
+
+	if endMin <= startMin {
+		return false
+	}
+	if startMin < openingMin || endMin > closingMin {
+		return false
+	}
+	return true
 }
 
 func (s *BookingService) CalculatePrice(ctx context.Context, venueID string, startTime, endTime time.Time) (int64, string, error) {

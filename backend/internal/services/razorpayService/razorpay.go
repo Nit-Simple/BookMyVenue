@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
@@ -25,8 +26,10 @@ type RazorpayService struct {
 
 func NewRazorpayService(cfg *config.Config) *RazorpayService {
 	return &RazorpayService{
-		cfg:           cfg,
-		httpClient:    &http.Client{},
+		cfg: cfg,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 		webhookSecret: cfg.RazorpayWebhookSecret,
 	}
 }
@@ -79,14 +82,17 @@ func (s *RazorpayService) VerifyWebhookSignature(payload []byte, signature, time
 	}
 
 	payloadStr := fmt.Sprintf("%s.%s", timestamp, string(payload))
-	expected := hmacSHA256(payloadStr, s.webhookSecret)
+
+	mac := hmac.New(sha256.New, []byte(s.webhookSecret))
+	mac.Write([]byte(payloadStr))
+	expected := mac.Sum(nil)
 
 	decoded, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
 		return false
 	}
 
-	return hmac.Equal([]byte(expected), decoded)
+	return hmac.Equal(expected, decoded)
 }
 
 func (s *RazorpayService) ProcessRefund(ctx context.Context, paymentID string, amount int64) (string, error) {

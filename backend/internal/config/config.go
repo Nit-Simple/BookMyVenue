@@ -41,6 +41,10 @@ type Config struct {
 	JWTExpiry     time.Duration
 	RefreshExpiry time.Duration
 
+	// Bookings
+	BookingPendingExpiry  time.Duration
+	BookingReaperInterval time.Duration
+
 	// Cloudinary
 	CloudinaryCloudName string
 	CloudinaryAPIKey    string
@@ -95,6 +99,8 @@ func Load() (*Config, error) {
 
 	cfg.JWTExpiry = getDuration("JWT_EXPIRY", 15*time.Minute)
 	cfg.RefreshExpiry = getDuration("REFRESH_EXPIRY", 7*24*time.Hour)
+	cfg.BookingPendingExpiry = getDuration("PENDING_BOOKING_EXPIRY", 15*time.Minute)
+	cfg.BookingReaperInterval = getDuration("PENDING_BOOKING_SWEEP_INTERVAL", 5*time.Minute)
 
 	jwtPrivKeyraw := requireEnv("JWT_PRIVATE_KEY", &errs) // base64-encoded
 	jwtPubKeyraw := requireEnv("JWT_PUBLIC_KEY", &errs)

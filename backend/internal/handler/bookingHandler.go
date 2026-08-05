@@ -50,8 +50,18 @@ func (s *Server) createBookingHandler(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
 		case errors.Is(err, domain.ErrVenueNotAvailableInTime):
 			c.JSON(http.StatusConflict, gin.H{"error": "venue not available for the requested time slot"})
+		case errors.Is(err, domain.ErrVenueOutsideOperatingHours):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "requested time slot is outside the venue's operating hours"})
 		case errors.Is(err, domain.ErrVenueNotApproved):
 			c.JSON(http.StatusForbidden, gin.H{"error": "venue is not approved for booking"})
+		case errors.Is(err, domain.ErrBookingInPast):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "booking start time cannot be in the past"})
+		case errors.Is(err, domain.ErrVenueMinDurationNotMet):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "booking duration is below the venue's minimum"})
+		case errors.Is(err, domain.ErrGuestCountExceedsCapacity):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "guest count exceeds the venue's seating capacity"})
+		case errors.Is(err, domain.ErrBookingValidation):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			s.logger.Error("create booking failed", "user_id", userID, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create booking"})

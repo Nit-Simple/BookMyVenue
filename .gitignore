@@ -56,3 +56,5 @@ profiling/
 log/
 *.log
 .docker/
+state.md
+current_state.md

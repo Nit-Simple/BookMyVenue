@@ -38,12 +38,12 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
             INSERT INTO bookings (
                 id, venue_id, user_id, start_time, end_time,
                 total_amount, currency, booking_reference, guest_count, special_requests,
-                status, created_at, updated_at
+                status, created_at, updated_at, expires_at
             )
             SELECT
                 $4, $1, $5, $2, $3,
                 $6, $7, $8, $9, $10,
-                $11, $12, $13
+                $11, $12, $13, $14
             WHERE (SELECT is_available FROM availability_check) = true
             RETURNING
                 id, venue_id, user_id, payment_id,
@@ -79,6 +79,7 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
 		booking.Status,
 		booking.CreatedAt,
 		booking.UpdatedAt,
+		booking.ExpiresAt,
 	).Scan(
 		&booking.ID,
 		&booking.VenueID,
@@ -113,6 +114,12 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23P01" {
 		return nil, domain.ErrBookingConflict
+	}
+
+	// Case 2b: CHECK constraint violation (e.g. future_booking) — surface as a
+	// clean validation error instead of a raw 500.
+	if errors.As(err, &pgErr) && pgErr.Code == "23514" {
+		return nil, fmt.Errorf("%w: %s", domain.ErrBookingValidation, pgErr.ConstraintName)
 	}
 
 	// Case 3: Other database error
@@ -459,6 +466,50 @@ func (r *bookingRepository) GetByVenueAndDateRange(
 	}
 
 	return bookings, nil
+}
+
+func (r *bookingRepository) CheckVenueOverlap(
+	ctx context.Context,
+	venueID uuid.UUID,
+	start, end time.Time,
+) (bool, error) {
+	query := `
+        SELECT EXISTS (
+            SELECT 1
+            FROM bookings
+            WHERE venue_id = $1
+              AND status NOT IN ('CANCELLED', 'NO_SHOW')
+              AND tstzrange(start_time, end_time, '[)') && tstzrange($2, $3, '[)')
+        );
+    `
+
+	var exists bool
+	if err := r.DB.QueryRow(ctx, query, venueID, start, end).Scan(&exists); err != nil {
+		return false, fmt.Errorf("failed to check venue overlap: %w", err)
+	}
+
+	return exists, nil
+}
+
+func (r *bookingRepository) ExpireStaleBookings(ctx context.Context) (int64, error) {
+	query := `
+        UPDATE bookings
+        SET
+            status = 'CANCELLED',
+            cancellation_reason = 'booking expired (unpaid)',
+            cancelled_at = NOW(),
+            cancelled_by = NULL,
+            updated_at = NOW()
+        WHERE status = 'PENDING'
+          AND expires_at <= NOW()
+    `
+
+	tag, err := r.DB.Exec(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to expire stale bookings: %w", err)
+	}
+
+	return tag.RowsAffected(), nil
 }
 
 func (r *bookingRepository) GetVenueDailyBookings(

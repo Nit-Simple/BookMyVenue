@@ -27,6 +27,7 @@ func (s *Server) setupRoutes(r *gin.Engine) {
 
 	r.GET("/api/v1/venues", s.listVenuesHandler)
 	r.GET("/api/v1/venues/:venue_id", s.getVenueByIDHandler)
+	r.GET("/api/v1/venues/:venue_id/availability", s.checkVenueAvailabilityHandler)
 
 	// Razorpay webhook (no auth — signature verification is the auth)
 	r.POST("/api/v1/webhooks/razorpay", s.razorpayWebhookHandler)

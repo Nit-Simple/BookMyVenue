@@ -359,7 +359,7 @@ func (s *paymentRepository) UpdateToCaptured(ctx context.Context, orderID, payme
 			webhook_received_at = NOW(),
 			updated_at = NOW()
 		WHERE razorpay_order_id = $7
-		  AND status = 'AUTHORIZED'
+		  AND status IN ('PENDING', 'AUTHORIZED')
 		RETURNING
 			id, booking_id, razorpay_payment_id, razorpay_order_id, razorpay_signature,
 			amount, currency, status, razorpay_status,

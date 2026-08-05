@@ -139,7 +139,7 @@ func (s *VenueService) ListVenues(ctx context.Context, filter *domain.VenueFilte
 	return items, nil
 }
 
-func (s *VenueService) UpdateVenue(ctx context.Context, venue *domain.Venue) (*domain.Venue, error) {
+func (s *VenueService) UpdateVenue(ctx context.Context, actorID uuid.UUID, venue *domain.Venue) (*domain.Venue, error) {
 	if venue.VenueID == nil {
 		return nil, domain.ErrVenueIDRequired
 	}
@@ -147,6 +147,13 @@ func (s *VenueService) UpdateVenue(ctx context.Context, venue *domain.Venue) (*d
 	existing, err := s.venueRepo.GetVenueByID(ctx, *venue.VenueID)
 	if err != nil {
 		return nil, err
+	}
+	if existing == nil {
+		return nil, domain.ErrVenueNotFound
+	}
+
+	if existing.OwnerID != actorID {
+		return nil, domain.ErrForbidden
 	}
 
 	if existing.OnboardingStatus != domain.StatusPendingApproval {
@@ -184,6 +191,17 @@ func (s *VenueService) SubmitVenuePricing(ctx context.Context, venueID, ownerID 
 // -------- venue application methods --------
 
 func (s *VenueService) CreateVenueApplication(ctx context.Context, venueID, ownerID uuid.UUID, appType domain.ApplicationType) (*domain.VenueApplication, error) {
+	venue, err := s.venueRepo.GetVenueByID(ctx, venueID)
+	if err != nil {
+		return nil, fmt.Errorf("get venue: %w", err)
+	}
+	if venue == nil {
+		return nil, domain.ErrVenueNotFound
+	}
+	if venue.OwnerID != ownerID {
+		return nil, domain.ErrForbidden
+	}
+
 	app := &domain.VenueApplication{
 		VenueID: venueID,
 		OwnerID: ownerID,

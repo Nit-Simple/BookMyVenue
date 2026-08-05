@@ -18,10 +18,11 @@ type MediaService struct {
 	cfg       *config.Config
 	cld       *cloudinary.Cloudinary
 	mediaRepo domain.VenueMediaRepository
+	venueRepo domain.VenueRepository
 	logger    *slog.Logger
 }
 
-func NewMediaService(cfg *config.Config, mediaRepo domain.VenueMediaRepository, logger *slog.Logger) (*MediaService, error) {
+func NewMediaService(cfg *config.Config, mediaRepo domain.VenueMediaRepository, venueRepo domain.VenueRepository, logger *slog.Logger) (*MediaService, error) {
 	cld, err := cloudinary.NewFromParams(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)
 	if err != nil {
 		return nil, fmt.Errorf("cloudinary init: %w", err)
@@ -34,8 +35,24 @@ func NewMediaService(cfg *config.Config, mediaRepo domain.VenueMediaRepository, 
 		cfg:       cfg,
 		cld:       cld,
 		mediaRepo: mediaRepo,
+		venueRepo: venueRepo,
 		logger:    logger,
 	}, nil
+}
+
+// checkVenueOwnership verifies that actorID owns the venue for the given media.
+func (s *MediaService) checkVenueOwnership(ctx context.Context, venueID, actorID uuid.UUID) error {
+	venue, err := s.venueRepo.GetVenueByID(ctx, venueID)
+	if err != nil {
+		return fmt.Errorf("get venue: %w", err)
+	}
+	if venue == nil {
+		return domain.ErrVenueNotFound
+	}
+	if venue.OwnerID != actorID {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
 func (s *MediaService) Upload(ctx context.Context, venueID uuid.UUID, file io.Reader, filename string, primary bool, sortOrder int32) (*domain.VenueMedia, error) {
@@ -163,7 +180,7 @@ func (s *MediaService) UploadFromURL(ctx context.Context, venueID uuid.UUID, ima
 	return created, nil
 }
 
-func (s *MediaService) Delete(ctx context.Context, mediaID uuid.UUID) error {
+func (s *MediaService) Delete(ctx context.Context, actorID, mediaID uuid.UUID) error {
 	s.logger.InfoContext(ctx, "deleting venue media",
 		"media_id", mediaID,
 	)
@@ -175,6 +192,13 @@ func (s *MediaService) Delete(ctx context.Context, mediaID uuid.UUID) error {
 			"err", err,
 		)
 		return fmt.Errorf("get media: %w", err)
+	}
+	if media == nil {
+		return domain.ErrVenueMediaNotFound
+	}
+
+	if err := s.checkVenueOwnership(ctx, media.VenueID, actorID); err != nil {
+		return err
 	}
 
 	var meta struct {
@@ -222,10 +246,26 @@ func (s *MediaService) ListByVenue(ctx context.Context, venueID uuid.UUID) ([]*d
 	return s.mediaRepo.ListByVenue(ctx, venueID)
 }
 
-func (s *MediaService) SetPrimary(ctx context.Context, mediaID uuid.UUID) (*domain.VenueMedia, error) {
+func (s *MediaService) SetPrimary(ctx context.Context, actorID, mediaID uuid.UUID) (*domain.VenueMedia, error) {
 	s.logger.InfoContext(ctx, "setting venue media as primary",
 		"media_id", mediaID,
 	)
+
+	media, err := s.mediaRepo.GetByID(ctx, mediaID)
+	if err != nil {
+		s.logger.ErrorContext(ctx, "failed to fetch venue media",
+			"media_id", mediaID,
+			"err", err,
+		)
+		return nil, fmt.Errorf("get media: %w", err)
+	}
+	if media == nil {
+		return nil, domain.ErrVenueMediaNotFound
+	}
+
+	if err := s.checkVenueOwnership(ctx, media.VenueID, actorID); err != nil {
+		return nil, err
+	}
 
 	result, err := s.mediaRepo.SetPrimary(ctx, mediaID)
 	if err != nil {

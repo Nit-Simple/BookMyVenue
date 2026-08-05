@@ -184,6 +184,12 @@ func (s *Server) getManagerVenueByIDHandler(c *gin.Context) {
 		return
 	}
 
+	userUUID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	venue, media, err := s.venueService.GetVenueDetail(ctx, venueID)
 	if err != nil {
 		if errors.Is(err, domain.ErrVenueNotFound) {
@@ -192,6 +198,11 @@ func (s *Server) getManagerVenueByIDHandler(c *gin.Context) {
 		}
 		s.logger.Error("failed to get venue", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get venue"})
+		return
+	}
+
+	if venue.OwnerID != userUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you do not own this venue"})
 		return
 	}
 
@@ -324,8 +335,12 @@ func (s *Server) updateManagerVenueHandler(c *gin.Context) {
 		existing.Location.Longitude = v
 	}
 
-	updated, err := s.venueService.UpdateVenue(ctx, existing)
+	updated, err := s.venueService.UpdateVenue(ctx, userUUID, existing)
 	if err != nil {
+		if errors.Is(err, domain.ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you do not own this venue"})
+			return
+		}
 		s.logger.Error("failed to update venue", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update venue"})
 		return
@@ -450,6 +465,28 @@ func (s *Server) getManagerVenuePricingHandler(c *gin.Context) {
 	venueID, err := uuid.Parse(c.Param("venue_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid venue id"})
+		return
+	}
+
+	userUUID, err := getUserID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	venue, _, err := s.venueService.GetVenueDetail(ctx, venueID)
+	if err != nil {
+		if errors.Is(err, domain.ErrVenueNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "venue not found"})
+			return
+		}
+		s.logger.Error("failed to get venue", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get venue"})
+		return
+	}
+
+	if venue.OwnerID != userUUID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "you do not own this venue"})
 		return
 	}
 
