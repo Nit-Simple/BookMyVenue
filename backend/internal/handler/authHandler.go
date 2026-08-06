@@ -160,7 +160,9 @@ func (s *Server) logoutHandler(c *gin.Context) {
 	}
 
 	err := s.authService.Logout(ctx, refreshToken)
-	if err != nil {
+	if err != nil && !errors.Is(err, domain.ErrSessionNotFound) {
+		// ErrSessionNotFound is idempotent: an already-expired or rotated token
+		// means the session is already gone, which is the desired end state.
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
