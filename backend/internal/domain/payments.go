@@ -10,8 +10,6 @@ import (
 )
 
 type PaymentRepository interface {
-	// Create inserts a new payment record.
-	Create(ctx context.Context, payment *Payment) error
 
 	// GetByID fetches a payment by its ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*Payment, error)

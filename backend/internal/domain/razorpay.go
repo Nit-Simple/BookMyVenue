@@ -50,6 +50,15 @@ type CreateOrderRequest struct {
 	Notes    map[string]string `json:"notes"`    // booking_id etc.
 }
 
+// RazorpayPayment is the subset of a Razorpay payment object we read back via
+// the payments fetch API so we can sync capture state locally.
+type RazorpayPayment struct {
+	ID      string `json:"id"`      // pay_xxxxxxxx
+	Status  string `json:"status"`  // "created" | "authorized" | "captured" | "attempted" | "failed"
+	OrderID string `json:"order_id"`
+	Amount  int64  `json:"amount"`  // In paise
+}
+
 type CreateOrderResponse struct {
 	ID         string `json:"id"`     // order_xxxxxxxx
 	Entity     string `json:"entity"` // "order"

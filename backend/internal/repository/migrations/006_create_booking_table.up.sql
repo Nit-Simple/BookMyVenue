@@ -9,7 +9,7 @@ CREATE TYPE booking_status AS ENUM(
 CREATE TABLE bookings(
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     venue_id            UUID NOT NULL REFERENCES venue(venue_id) ON DELETE CASCADE,
-    user_id             UUID NOT NULL,
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     start_time          TIMESTAMPTZ NOT NULL,
     end_time            TIMESTAMPTZ NOT NULL,
     time_range          TSTZRANGE,

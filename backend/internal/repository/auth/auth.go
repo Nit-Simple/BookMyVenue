@@ -198,10 +198,9 @@ func (r *authRepository) FindSessionByHash(ctx context.Context, refreshTokenHash
 	`
 	var s domain.Sessions
 	var scannedIP sql.NullString
-	var id string // session ID is unexported, scan to local variable
 
 	err := r.DB.QueryRow(ctx, query, refreshTokenHash).Scan(
-		&id,
+		&s.ID,
 		&s.UserID,
 		&s.RefreshTokenHash,
 		&s.DeviceInfo,
@@ -247,6 +246,54 @@ func (r *authRepository) DeleteSession(ctx context.Context, requestTokenHash str
 		WHERE refresh_token_hash = $1
 	`
 	cmdTag, err := r.DB.Exec(ctx, query, requestTokenHash)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return domain.ErrSessionNotFound
+	}
+	return nil
+}
+
+// RecordUsedToken marks a refresh token hash as consumed, keyed to its session.
+// A unique conflict on token_hash indicates the same token was used more than once.
+func (r *authRepository) RecordUsedToken(ctx context.Context, sessionID, tokenHash string) error {
+	query := `
+		INSERT INTO refresh_token_history (session_id, token_hash)
+		VALUES ($1, $2)
+	`
+	_, err := r.DB.Exec(ctx, query, sessionID, tokenHash)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// FindUsedToken returns the session id owning a previously-consumed token hash.
+func (r *authRepository) FindUsedToken(ctx context.Context, tokenHash string) (string, error) {
+	query := `
+		SELECT session_id
+		FROM refresh_token_history
+		WHERE token_hash = $1
+	`
+	var sessionID string
+	err := r.DB.QueryRow(ctx, query, tokenHash).Scan(&sessionID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", domain.ErrSessionNotFound
+		}
+		return "", err
+	}
+	return sessionID, nil
+}
+
+// DeleteSessionByID removes a session and (via cascade) all its history rows.
+func (r *authRepository) DeleteSessionByID(ctx context.Context, sessionID string) error {
+	query := `
+		DELETE FROM sessions
+		WHERE id = $1
+	`
+	cmdTag, err := r.DB.Exec(ctx, query, sessionID)
 	if err != nil {
 		return err
 	}

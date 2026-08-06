@@ -16,4 +16,7 @@ type AuthRepository interface {
 	FindSessionByHash(ctx context.Context, refreshTokenHash string) (*Sessions, error)
 	UpdateSession(ctx context.Context, oldHash, newHash string, newEXpiry time.Time) error
 	DeleteSession(ctx context.Context, requestTokenHash string) error
+	RecordUsedToken(ctx context.Context, sessionID, tokenHash string) error
+	FindUsedToken(ctx context.Context, tokenHash string) (string, error)
+	DeleteSessionByID(ctx context.Context, sessionID string) error
 }

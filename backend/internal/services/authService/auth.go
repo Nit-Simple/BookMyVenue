@@ -3,6 +3,7 @@ package authservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
@@ -114,6 +115,14 @@ func (a *AuthService) Refresh(ctx context.Context, refreshToken, ip, userAgent s
 
 	session, err := a.repo.FindSessionByHash(ctx, oldHash)
 	if err != nil {
+		// Not a current token. If it's a previously-rotated (used) token, that's
+		// a reuse signal: revoke the whole session family.
+		if errors.Is(err, domain.ErrSessionNotFound) {
+			if sid, ferr := a.repo.FindUsedToken(ctx, oldHash); ferr == nil {
+				_ = a.repo.DeleteSessionByID(ctx, sid)
+				return "", "", domain.ErrRefreshTokenReuse
+			}
+		}
 		return "", "", domain.ErrSessionNotFound
 	}
 
@@ -141,8 +150,19 @@ func (a *AuthService) Refresh(ctx context.Context, refreshToken, ip, userAgent s
 	newHash := hashRefreshToken(newRefreshTokenRaw)
 	newExpiry := time.Now().Add(a.cfg.RefreshExpiry)
 
+	if err := a.repo.RecordUsedToken(ctx, session.ID, oldHash); err != nil {
+		// Same token consumed twice concurrently → reuse → revoke the session.
+		_ = a.repo.DeleteSessionByID(ctx, session.ID)
+		return "", "", domain.ErrRefreshTokenReuse
+	}
+
 	err = a.repo.UpdateSession(ctx, oldHash, newHash, newExpiry)
 	if err != nil {
+		if errors.Is(err, domain.ErrSessionNotFound) {
+			// Concurrent rotation already advanced past this token → reuse.
+			_ = a.repo.DeleteSessionByID(ctx, session.ID)
+			return "", "", domain.ErrRefreshTokenReuse
+		}
 		return "", "", err
 	}
 

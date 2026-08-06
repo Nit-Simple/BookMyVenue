@@ -20,7 +20,7 @@ CREATE TABLE payments(
     id uuid primary key default gen_random_uuid(),
     booking_id uuid not null references bookings(id) on delete restrict,
     razorpay_payment_id VARCHAR(50) UNIQUE,
-    razorpay_order_id   VARCHAR(50) NOT NULL,
+    razorpay_order_id   VARCHAR(50) NOT NULL UNIQUE,
     razorpay_signature  VARCHAR(255),
     amount              INT NOT NULL,              -- 15000 = ₹150.00
     currency            CHAR(3) NOT NULL DEFAULT 'INR',

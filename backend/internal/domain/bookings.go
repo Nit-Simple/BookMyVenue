@@ -11,7 +11,10 @@ import (
 )
 
 type BookingRepository interface {
-	Create(ctx context.Context, booking *Booking) (*CreateBookingResult, error)
+	// CreateWithPayment inserts a booking and its payment atomically in a single
+	// transaction. The booking and payment either both commit or both roll back,
+	// so a failure can never leave an orphaned PENDING booking holding a slot.
+	CreateWithPayment(ctx context.Context, booking *Booking, payment *Payment) (*CreateBookingResult, error)
 
 	// GetByID fetches a booking by its ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*Booking, error)
@@ -84,7 +87,7 @@ type Booking struct {
 	VenueID uuid.UUID `db:"venue_id" json:"venue_id"`
 	UserID  uuid.UUID `db:"user_id" json:"user_id"`
 
-	PaymentID pgtype.UUID `db:"payment_id" json:"payment_id"`
+	PaymentID pgtype.UUID `db:"payment_id" json:"-"`
 
 	// Time Core
 	StartTime   time.Time                        `db:"start_time" json:"start_time"`

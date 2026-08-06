@@ -24,62 +24,6 @@ func NewPaymentRepository(db *pgxpool.Pool) domain.PaymentRepository {
 	}
 }
 
-func (s *paymentRepository) Create(ctx context.Context, payment *domain.Payment) error {
-	query := `
-		INSERT INTO payments (
-			booking_id, razorpay_order_id, amount, currency, status,
-			created_at, updated_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7
-		)
-		RETURNING
-			id, booking_id, razorpay_payment_id, razorpay_order_id, razorpay_signature,
-			amount, currency, status, razorpay_status,
-			method, card_last_4, bank_name, vpa,
-			refund_id, refund_amount, refund_status,
-			webhook_payload, webhook_received_at,
-			created_at, updated_at;
-	`
-
-	now := time.Now()
-	err := s.DB.QueryRow(
-		ctx, query,
-		payment.BookingID,
-		payment.RazorpayOrderID,
-		payment.Amount,
-		payment.Currency,
-		domain.PaymentStatusPending,
-		now,
-		now,
-	).Scan(
-		&payment.ID,
-		&payment.BookingID,
-		&payment.RazorpayPaymentID,
-		&payment.RazorpayOrderID,
-		&payment.RazorpaySignature,
-		&payment.Amount,
-		&payment.Currency,
-		&payment.Status,
-		&payment.RazorpayStatus,
-		&payment.Method,
-		&payment.CardLast4,
-		&payment.BankName,
-		&payment.VPA,
-		&payment.RefundID,
-		&payment.RefundAmount,
-		&payment.RefundStatus,
-		&payment.WebhookPayload,
-		&payment.WebhookReceivedAt,
-		&payment.CreatedAt,
-		&payment.UpdatedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create payment: %w", err)
-	}
-
-	return nil
-}
-
 func (s *paymentRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Payment, error) {
 	query := `
 		SELECT

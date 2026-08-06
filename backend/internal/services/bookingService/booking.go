@@ -11,20 +11,29 @@ import (
 
 	"github.com/Nit-Simple/BookMyVenue/internal/config"
 	"github.com/Nit-Simple/BookMyVenue/internal/domain"
-	razorpayService "github.com/Nit-Simple/BookMyVenue/internal/services/razorpayService"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// RazorpayProvider is the subset of the Razorpay gateway the booking flow needs.
+// Abstracted so the service can be unit-tested without live HTTP calls; the
+// concrete *razorpayService.RazorpayService satisfies it.
+type RazorpayProvider interface {
+	CreateOrder(ctx context.Context, req *domain.CreateOrderRequest) (*domain.CreateOrderResponse, error)
+	VerifySignature(orderID, paymentID, signature string) bool
+	ProcessRefund(ctx context.Context, paymentID string, amount int64) (string, error)
+	FetchPayment(ctx context.Context, paymentID string) (*domain.RazorpayPayment, error)
+}
+
 type BookingService struct {
-	bookingRepo     domain.BookingRepository
-	paymentRepo     domain.PaymentRepository
-	venueRepo       domain.VenueRepository
+	bookingRepo      domain.BookingRepository
+	paymentRepo      domain.PaymentRepository
+	venueRepo        domain.VenueRepository
 	venuePricingRepo domain.VenuePricingRepository
-	razorpaySvc     *razorpayService.RazorpayService
-	idempotencyRepo domain.IdempotencyRepository
-	cfg             *config.Config
-	logger          *slog.Logger
+	razorpaySvc      RazorpayProvider
+	idempotencyRepo  domain.IdempotencyRepository
+	cfg              *config.Config
+	logger           *slog.Logger
 }
 
 func NewBookingService(
@@ -32,7 +41,7 @@ func NewBookingService(
 	paymentRepo domain.PaymentRepository,
 	venueRepo domain.VenueRepository,
 	venuePricingRepo domain.VenuePricingRepository,
-	razorpaySvc *razorpayService.RazorpayService,
+	razorpaySvc RazorpayProvider,
 	idempotencyRepo domain.IdempotencyRepository,
 	cfg *config.Config,
 	logger *slog.Logger,
@@ -210,14 +219,6 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		ExpiresAt:  time.Now().Add(s.cfg.BookingPendingExpiry),
 	}
 
-	createResult, err := s.bookingRepo.Create(ctx, booking)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create booking: %w", err)
-	}
-	if !createResult.IsAvailable {
-		return nil, domain.ErrVenueNotAvailableInTime
-	}
-
 	razorpayReq := &domain.CreateOrderRequest{
 		Amount:   amountPaise,
 		Currency: currency,
@@ -227,6 +228,10 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		},
 	}
 
+	// Create the Razorpay order FIRST — it's an external side effect and can't
+	// live inside a DB transaction. The booking and payment are then persisted
+	// atomically (single tx) keyed to that order, so a failure can never leave
+	// an orphaned PENDING booking holding a venue slot.
 	razorpayOrder, err := s.razorpaySvc.CreateOrder(ctx, razorpayReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create razorpay order: %w", err)
@@ -239,8 +244,13 @@ func (s *BookingService) CreateBooking(ctx context.Context, userID uuid.UUID, re
 		Amount:          int32(amountPaise),
 		Currency:        currency,
 	}
-	if err := s.paymentRepo.Create(ctx, payment); err != nil {
-		return nil, fmt.Errorf("failed to create payment: %w", err)
+
+	createResult, err := s.bookingRepo.CreateWithPayment(ctx, booking, payment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create booking: %w", err)
+	}
+	if !createResult.IsAvailable {
+		return nil, domain.ErrVenueNotAvailableInTime
 	}
 
 	expiresAt := booking.ExpiresAt
@@ -309,6 +319,23 @@ func (s *BookingService) ConfirmPayment(ctx context.Context, bookingID string, u
 			return nil, domain.ErrPaymentUpdateConflict
 		}
 		authorized = capturedPayment
+	}
+
+	// Sync the real Razorpay capture state so a local checkout lands at CAPTURED
+	// even when the payment.captured webhook can't reach the server. This is what
+	// makes a later CancelBooking refund possible. Non-fatal: if the fetch or the
+	// capture update fails, we still confirm the booking.
+	if paymentID != "" {
+		rzPayment, err := s.razorpaySvc.FetchPayment(ctx, paymentID)
+		if err != nil {
+			s.logger.Warn("booking: failed to fetch razorpay payment status on confirm", "payment_id", paymentID, "error", err)
+		} else if rzPayment.Status == "captured" {
+			if capResult, capErr := s.paymentRepo.UpdateToCaptured(ctx, orderID, paymentID, nil); capErr != nil {
+				s.logger.Warn("booking: failed to sync captured payment on confirm", "order_id", orderID, "payment_id", paymentID, "error", capErr)
+			} else if capResult != nil && capResult.Payment != nil {
+				authorized = capResult.Payment
+			}
+		}
 	}
 
 	confirmed, err := s.bookingRepo.ConfirmBooking(ctx, bID, authorized.ID)
@@ -535,7 +562,7 @@ func (s *BookingService) CalculatePrice(ctx context.Context, venueID string, sta
 	}
 
 	isWeekend := domain.IsWeekend(startTime)
-	hours := math.Ceil(domain.CalculateDurationHours(startTime, endTime))
+	hours := domain.CalculateDurationHours(startTime, endTime)
 	if hours < 1 {
 		hours = 1
 	}

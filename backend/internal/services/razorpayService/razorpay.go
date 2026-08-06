@@ -132,6 +132,38 @@ func (s *RazorpayService) ProcessRefund(ctx context.Context, paymentID string, a
 	return result.ID, nil
 }
 
+func (s *RazorpayService) FetchPayment(ctx context.Context, paymentID string) (*domain.RazorpayPayment, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("https://api.razorpay.com/v1/payments/%s", paymentID),
+		nil)
+	if err != nil {
+		return nil, fmt.Errorf("razorpay: failed to create payment fetch request: %w", err)
+	}
+	httpReq.SetBasicAuth(s.cfg.RazorpayKeyID, s.cfg.RazorpayKeySecret)
+
+	resp, err := s.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("razorpay: payment fetch API call failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("razorpay: failed to read payment fetch response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("razorpay: payment fetch API returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var payment domain.RazorpayPayment
+	if err := json.Unmarshal(respBody, &payment); err != nil {
+		return nil, fmt.Errorf("razorpay: failed to unmarshal payment fetch response: %w", err)
+	}
+
+	return &payment, nil
+}
+
 func hmacSHA256(payload, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))

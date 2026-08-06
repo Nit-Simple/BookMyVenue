@@ -62,6 +62,8 @@ func (s *Server) createBookingHandler(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "guest count exceeds the venue's seating capacity"})
 		case errors.Is(err, domain.ErrBookingValidation):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, domain.ErrBookingConflict):
+			c.JSON(http.StatusConflict, gin.H{"error": "booking conflict: slot no longer available"})
 		default:
 			s.logger.Error("create booking failed", "user_id", userID, "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create booking"})
@@ -114,6 +116,53 @@ func (s *Server) confirmPaymentHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, confirmed)
 }
 
+const (
+	defaultPageSize = 10
+	maxPageSize     = 100
+	maxOffset       = 10000
+)
+
+var validBookingStatuses = map[domain.BookingStatus]struct{}{
+	domain.BookingStatusPending:   {},
+	domain.BookingStatusConfirmed: {},
+	domain.BookingStatusCompleted: {},
+	domain.BookingStatusCancelled: {},
+	domain.BookingStatusNoShow:    {},
+}
+
+func parsePagination(c *gin.Context) (limit, offset int) {
+	limit = defaultPageSize
+	if l, err := strconv.Atoi(c.DefaultQuery("limit", strconv.Itoa(defaultPageSize))); err == nil && l > 0 && l <= maxPageSize {
+		limit = l
+	}
+	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 && o <= maxOffset {
+		offset = o
+	}
+	return limit, offset
+}
+
+// parseStatusFilters extracts and validates the comma-separated status query
+// param. It returns ok=false if any value is not a known booking status.
+func parseStatusFilters(c *gin.Context) ([]*domain.BookingStatus, bool) {
+	statusStr := c.Query("status")
+	if statusStr == "" {
+		return nil, true
+	}
+	var filters []*domain.BookingStatus
+	for _, s := range strings.Split(statusStr, ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		st := domain.BookingStatus(s)
+		if _, ok := validBookingStatuses[st]; !ok {
+			return nil, false
+		}
+		filters = append(filters, &st)
+	}
+	return filters, true
+}
+
 func (s *Server) listBookingsHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -123,24 +172,12 @@ func (s *Server) listBookingsHandler(c *gin.Context) {
 		return
 	}
 
-	limit := 10
-	offset := 0
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := parsePagination(c)
 
-	var statusFilters []*domain.BookingStatus
-	if statusStr := c.Query("status"); statusStr != "" {
-		for _, s := range strings.Split(statusStr, ",") {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				st := domain.BookingStatus(s)
-				statusFilters = append(statusFilters, &st)
-			}
-		}
+	statusFilters, ok := parseStatusFilters(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status filter"})
+		return
 	}
 
 	bookings, total, err := s.bookingService.ListUserBookings(ctx, userID, statusFilters, limit, offset)
@@ -167,24 +204,12 @@ func (s *Server) listManagerBookingsHandler(c *gin.Context) {
 		return
 	}
 
-	limit := 10
-	offset := 0
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := parsePagination(c)
 
-	var statusFilters []*domain.BookingStatus
-	if statusStr := c.Query("status"); statusStr != "" {
-		for _, s := range strings.Split(statusStr, ",") {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				st := domain.BookingStatus(s)
-				statusFilters = append(statusFilters, &st)
-			}
-		}
+	statusFilters, ok := parseStatusFilters(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status filter"})
+		return
 	}
 
 	bookings, total, err := s.bookingService.ListManagerBookings(ctx, userID, statusFilters, limit, offset)
@@ -211,14 +236,7 @@ func (s *Server) listManagerUpcomingBookingsHandler(c *gin.Context) {
 		return
 	}
 
-	limit := 10
-	offset := 0
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := parsePagination(c)
 
 	bookings, total, err := s.bookingService.ListManagerUpcomingBookings(ctx, userID, limit, offset)
 	if err != nil {
@@ -244,14 +262,7 @@ func (s *Server) listManagerOngoingBookingsHandler(c *gin.Context) {
 		return
 	}
 
-	limit := 10
-	offset := 0
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := parsePagination(c)
 
 	bookings, total, err := s.bookingService.ListManagerOngoingBookings(ctx, userID, limit, offset)
 	if err != nil {
@@ -283,24 +294,12 @@ func (s *Server) listManagerVenueBookingsHandler(c *gin.Context) {
 		return
 	}
 
-	limit := 10
-	offset := 0
-	if l, err := strconv.Atoi(c.DefaultQuery("limit", "10")); err == nil && l > 0 && l <= 100 {
-		limit = l
-	}
-	if o, err := strconv.Atoi(c.DefaultQuery("offset", "0")); err == nil && o >= 0 {
-		offset = o
-	}
+	limit, offset := parsePagination(c)
 
-	var statusFilters []*domain.BookingStatus
-	if statusStr := c.Query("status"); statusStr != "" {
-		for _, s := range strings.Split(statusStr, ",") {
-			s = strings.TrimSpace(s)
-			if s != "" {
-				st := domain.BookingStatus(s)
-				statusFilters = append(statusFilters, &st)
-			}
-		}
+	statusFilters, ok := parseStatusFilters(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status filter"})
+		return
 	}
 
 	bookings, total, err := s.bookingService.ListManagerVenueBookings(ctx, venueID, userID, statusFilters, limit, offset)
@@ -357,8 +356,8 @@ func (s *Server) getBookingByIDHandler(c *gin.Context) {
 	}
 
 	bookingID := c.Param("booking_id")
-	if bookingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "booking_id is required"})
+	if _, err := uuid.Parse(bookingID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid booking id"})
 		return
 	}
 
@@ -368,13 +367,8 @@ func (s *Server) getBookingByIDHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch booking"})
 		return
 	}
-	if booking == nil {
+	if booking == nil || booking.UserID != userID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "booking not found"})
-		return
-	}
-
-	if booking.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "booking does not belong to user"})
 		return
 	}
 

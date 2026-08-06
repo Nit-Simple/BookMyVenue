@@ -51,9 +51,9 @@ type Config struct {
 	CloudinaryAPISecret string
 
 	// Razorpay
-	RazorpayKeyID          string
-	RazorpayKeySecret      string
-	RazorpayWebhookSecret  string
+	RazorpayKeyID         string
+	RazorpayKeySecret     string
+	RazorpayWebhookSecret string
 }
 
 func (c *Config) Addr() string {
@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 	cfg.Port = getEnv("PORT", "8081")
 	cfg.Environment = getEnv("ENVIRONMENT", "development")
 	cfg.AllowedOrigins = getCSV("ALLOWED_ORIGINS", []string{"http://localhost:5173",
-	 "http://localhost:3000","http://localhost:5175","http://localhost:5176"})
+		"http://localhost:3000", "http://localhost:5175", "http://localhost:5176"})
 
 	// typed parsing
 	cfg.ReadTimeout = getDuration("READ_TIMEOUT", 30*time.Second)

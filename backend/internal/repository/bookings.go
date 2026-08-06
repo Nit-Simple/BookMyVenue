@@ -23,7 +23,43 @@ func NewBookingRepository(db *pgxpool.Pool) domain.BookingRepository {
 	}
 }
 
-func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking) (*domain.CreateBookingResult, error) {
+// CreateWithPayment inserts a booking and its payment atomically in a single
+// transaction. Both commit together or neither does, so a failed write can never
+// leave an orphaned PENDING booking permanently holding a venue slot.
+func (r *bookingRepository) CreateWithPayment(ctx context.Context, booking *domain.Booking, payment *domain.Payment) (*domain.CreateBookingResult, error) {
+	tx, err := r.DB.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin booking tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	result, err := createBookingWith(ctx, tx, booking)
+	if err != nil {
+		return nil, err
+	}
+	if !result.IsAvailable {
+		// Slot was NOT available (INSERT skipped); rollback leaves nothing behind and no payment row is written as the unpaid order goes unused without blocking the slot.
+		return &domain.CreateBookingResult{IsAvailable: false, Booking: nil}, nil
+	}
+
+	if err := createPaymentRow(ctx, tx, payment); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return result, nil
+}
+
+// dbExecutor is the shared subset of query methods implemented by both *pgxpool.Pool and pgx.Tx,
+// so the same insert logic works against either a single pooled connection or a transaction.
+type dbExecutor interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func createBookingWith(ctx context.Context, q dbExecutor, booking *domain.Booking) (*domain.CreateBookingResult, error) {
 	query := `
         WITH availability_check AS (
             SELECT NOT EXISTS (
@@ -63,7 +99,7 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
         FROM insert_booking;
     `
 
-	err := r.DB.QueryRow(
+	err := q.QueryRow(
 		ctx,
 		query,
 		booking.VenueID,
@@ -102,7 +138,7 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
 		&booking.UpdatedAt,
 	)
 
-	//Slot was NOT available (INSERT skipped)
+	// Slot was NOT available (INSERT skipped)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &domain.CreateBookingResult{
 			IsAvailable: false,
@@ -132,6 +168,63 @@ func (r *bookingRepository) Create(ctx context.Context, booking *domain.Booking)
 		IsAvailable: true,
 		Booking:     booking,
 	}, nil
+}
+
+// createPaymentRow inserts a PENDING payment row against the given executor (pool or tx).
+func createPaymentRow(ctx context.Context, q dbExecutor, payment *domain.Payment) error {
+	query := `
+		INSERT INTO payments (
+			booking_id, razorpay_order_id, amount, currency, status,
+			created_at, updated_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7
+		)
+		RETURNING
+			id, booking_id, razorpay_payment_id, razorpay_order_id, razorpay_signature,
+			amount, currency, status, razorpay_status,
+			method, card_last_4, bank_name, vpa,
+			refund_id, refund_amount, refund_status,
+			webhook_payload, webhook_received_at,
+			created_at, updated_at;
+	`
+
+	now := time.Now()
+	err := q.QueryRow(
+		ctx, query,
+		payment.BookingID,
+		payment.RazorpayOrderID,
+		payment.Amount,
+		payment.Currency,
+		domain.PaymentStatusPending,
+		now,
+		now,
+	).Scan(
+		&payment.ID,
+		&payment.BookingID,
+		&payment.RazorpayPaymentID,
+		&payment.RazorpayOrderID,
+		&payment.RazorpaySignature,
+		&payment.Amount,
+		&payment.Currency,
+		&payment.Status,
+		&payment.RazorpayStatus,
+		&payment.Method,
+		&payment.CardLast4,
+		&payment.BankName,
+		&payment.VPA,
+		&payment.RefundID,
+		&payment.RefundAmount,
+		&payment.RefundStatus,
+		&payment.WebhookPayload,
+		&payment.WebhookReceivedAt,
+		&payment.CreatedAt,
+		&payment.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create payment: %w", err)
+	}
+
+	return nil
 }
 
 func (r *bookingRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Booking, error) {
@@ -312,7 +405,7 @@ func (r *bookingRepository) GetVenueBookingsForManager(ctx context.Context, venu
             b.id, b.venue_id, v.venue_name,
             b.user_id, u.full_name, u.email, u.phone,
             b.start_time, b.end_time,
-            b.total_amount, b.currency, b.status,
+            ROUND(b.total_amount / 100, 2) AS total_amount, b.currency, b.status,
             b.guest_count, b.booking_reference, b.created_at
         FROM bookings b
         JOIN venue v ON v.venue_id = b.venue_id
@@ -371,7 +464,7 @@ func (r *bookingRepository) GetManagerBookingDetail(ctx context.Context, booking
             b.id, b.venue_id, v.venue_name,
             b.user_id, u.full_name, u.email, u.phone,
             b.start_time, b.end_time,
-            b.total_amount, b.currency, b.status,
+            ROUND(b.total_amount / 100, 2) AS total_amount, b.currency, b.status,
             b.cancellation_reason, b.cancelled_at,
             b.booking_reference, b.special_requests, b.guest_count,
             p.id, p.razorpay_order_id, p.razorpay_payment_id, p.status,

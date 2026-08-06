@@ -22,7 +22,7 @@ type UserCreate struct {
 }
 
 type Sessions struct {
-	id               string    `db:"id"`
+	ID               string    `db:"id"`
 	UserID           string    `db:"user_id"`
 	RefreshTokenHash string    `db:"refresh_token_hash"`
 	DeviceInfo       []byte    `db:"device_info"`

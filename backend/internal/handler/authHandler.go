@@ -77,9 +77,8 @@ func (s *Server) loginHandler(c *gin.Context) {
 	c.SetCookie("refresh_token", refreshToken, int(s.config.RefreshExpiry.Seconds()), "/", "", isProd, true)
 
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
-		"expires_in":    int(s.config.JWTExpiry.Seconds()),
+		"access_token": accessToken,
+		"expires_in":   int(s.config.JWTExpiry.Seconds()),
 	})
 }
 
@@ -113,6 +112,12 @@ func (s *Server) refreshHandler(c *gin.Context) {
 
 	newAccessToken, newRefreshToken, err := s.authService.Refresh(ctx, refreshToken, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
+		if errors.Is(err, domain.ErrRefreshTokenReuse) {
+			isProd := s.config.Environment == "production"
+			c.SetCookie("refresh_token", "", -1, "/", "", isProd, true)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "session revoked, please log in again"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
@@ -121,9 +126,8 @@ func (s *Server) refreshHandler(c *gin.Context) {
 	c.SetCookie("refresh_token", newRefreshToken, int(s.config.RefreshExpiry.Seconds()), "/", "", isProd, true)
 
 	c.JSON(http.StatusOK, gin.H{
-		"access_token":  newAccessToken,
-		"refresh_token": newRefreshToken,
-		"expires_in":    int(s.config.JWTExpiry.Seconds()),
+		"access_token": newAccessToken,
+		"expires_in":   int(s.config.JWTExpiry.Seconds()),
 	})
 }
 
