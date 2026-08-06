@@ -239,8 +239,8 @@ func (s *Server) updateManagerVenueHandler(c *gin.Context) {
 		return
 	}
 
-	if existing.OnboardingStatus != domain.StatusPendingApproval {
-		c.JSON(http.StatusForbidden, gin.H{"error": "can only update venue while in PENDING_APPROVAL status"})
+	if existing.OnboardingStatus != domain.StatusApproved {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only APPROVED venues can be edited"})
 		return
 	}
 

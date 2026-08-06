@@ -11,7 +11,7 @@ import type {
  * Venue profile service — all endpoints are REAL (Go/Gin backend).
  *
  * Backend constraints surfaced by the UI:
- *  - PATCH is only allowed while onboarding_status === 'PENDING_APPROVAL'.
+ *  - PATCH is allowed unless onboarding_status === 'REJECTED'.
  *  - Media can only be attached at creation (multipart). There is no standalone
  *    add/replace/delete-media route yet → editing media is a TODO(backend).
  */
