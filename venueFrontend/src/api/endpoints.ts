@@ -24,7 +24,7 @@ export const endpoints = {
     analytics: (venueId: string) => `/manager/venues/${venueId}/analytics`, // TODO(backend)
   },
   calendar: {
-    bookings: (venueId: string) => `/manager/venues/${venueId}/bookings`, // TODO(backend)
+    bookings: (venueId: string) => `/manager/bookings/venue/${venueId}`, // ✅ REAL
     maintenance: (venueId: string) => `/manager/venues/${venueId}/maintenance`, // TODO(backend)
     maintenanceItem: (venueId: string, id: string) =>
       `/manager/venues/${venueId}/maintenance/${id}`, // TODO(backend)

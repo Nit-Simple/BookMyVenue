@@ -1,6 +1,6 @@
 import { api } from '@/api/axios';
 import { endpoints } from '@/api/endpoints';
-import type { Paginated, Review, Venue, VenueFilters } from '@/types';
+import type { AvailabilityCheckResult, Paginated, Review, Venue, VenueFilters } from '@/types';
 
 
 
@@ -57,7 +57,7 @@ function mapVenueListItem(item: BackendVenueListItem): Venue {
     category: 'meeting',
     categories: [],
     location: { address: '', city: item.city || '', state: item.state || '', pincode: '', lat: 0, lng: 0 },
-images: item.primary_image ? [item.primary_image] : ['https://via.placeholder.com/400x300?text=No+Image'],    rating: 0,
+    images: item.primary_image ? [item.primary_image] : ['https://via.placeholder.com/400x300?text=No+Image'], rating: 0,
     reviewCount: 0,
     capacityMin: 0,
     capacityMax: 0,
@@ -91,7 +91,7 @@ function mapVenueDetail(item: BackendVenueDetail): Venue {
       lat: 0,
       lng: 0,
     },
-images: item.media.length > 0 ? item.media.map(m => m.url) : ['https://via.placeholder.com/400x300?text=No+Image'],    rating: 0,
+    images: item.media.length > 0 ? item.media.map(m => m.url) : ['https://via.placeholder.com/400x300?text=No+Image'], rating: 0,
     reviewCount: 0,
     capacityMin: 0,
     capacityMax: item.seating_capacity,
@@ -133,22 +133,39 @@ function toParams(filters: VenueFilters): Record<string, string> {
 
 export const venuesApi = {
 
-list: async (filters: VenueFilters): Promise<Paginated<Venue>> => {
-  const { data } = await api.get<BackendVenueListItem[]>(endpoints.venues.list, {
-    params: toParams(filters), realApi: true
-  });
-  const items = data.map(mapVenueListItem);
-  return { items, page: 1, pageSize: items.length, total: items.length, totalPages: 1 };
-},
+  list: async (filters: VenueFilters): Promise<Paginated<Venue>> => {
+    const { data } = await api.get<BackendVenueListItem[]>(endpoints.venues.list, {
+      params: toParams(filters), realApi: true
+    });
+    const items = data.map(mapVenueListItem);
+    return { items, page: 1, pageSize: items.length, total: items.length, totalPages: 1 };
+  },
 
 
   detail: async (id: string): Promise<Venue> => {
-  const { data } = await api.get<BackendVenueDetail>(
-    endpoints.venues.detail(id),
-    { realApi: true }
-  );
-  return mapVenueDetail(data);
-},
+    const { data } = await api.get<BackendVenueDetail>(
+      endpoints.venues.detail(id),
+      { realApi: true }
+    );
+    return mapVenueDetail(data);
+  },
+
+
+  async checkAvailability(
+    venueId: string,
+    startIso: string,
+    endIso: string,
+    guestCount: number,
+  ): Promise<AvailabilityCheckResult> {
+    const { data } = await api.get<AvailabilityCheckResult>(
+      endpoints.venues.availability(venueId),
+      {
+        params: { start_time: startIso, end_time: endIso, guest_count: guestCount },
+        realApi: true,
+      },
+    );
+    return data;
+  },
 
   reviews: async (id: string): Promise<Review[]> => {
     const { data } = await api.get<Review[]>(endpoints.venues.reviews(id));

@@ -11,6 +11,17 @@ import { useBookingDraftStore } from '@/app/store/bookingDraftStore';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore, useToast } from '@/app/store/uiStore';
 import { cn } from '@/utils/cn';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useAvailabilityCheck } from '../queries';
+
+const AVAILABILITY_MSG: Record<string, string> = {
+  CONFLICT_EXISTS: 'Already booked for this time slot.',
+  OUTSIDE_OPERATING_HOURS: 'Outside this venue’s operating hours.',
+  PAST_TIME: 'Please choose a future date and time.',
+  BELOW_MIN_DURATION: 'This slot is shorter than the venue’s minimum booking.',
+  CAPACITY_EXCEEDED: 'Guest count exceeds this venue’s capacity.',
+  VENUE_NOT_FOUND: 'This venue is not available.',
+};
 
 export function BookingWidget({ venue }: { venue: Venue }) {
   const navigate = useNavigate();
@@ -39,6 +50,24 @@ export function BookingWidget({ venue }: { venue: Venue }) {
       }),
     [selectedPackage, guests, category, venue.offer],
   );
+
+  const debounced = useDebouncedValue({ date, timeSlot, guests }, 400);
+  const debouncedRange = useMemo(() => {
+    if (!debounced.date) return null;
+    const s = TIME_SLOTS.find((x) => x.value === debounced.timeSlot)!;
+    return {
+      start: `${debounced.date}T${s.start}:00+05:30`,
+      end: `${debounced.date}T${s.end}:00+05:30`,
+    };
+  }, [debounced.date, debounced.timeSlot]);
+
+  const { data: availability, isFetching } = useAvailabilityCheck(
+    venue.id,
+    debouncedRange,
+    debounced.guests,
+  );
+
+  const isBlocked = availability?.available === false;
 
   const handleContinue = () => {
     if (!date) {
@@ -175,11 +204,38 @@ export function BookingWidget({ venue }: { venue: Venue }) {
         size="lg"
         className="mt-4"
         onClick={handleContinue}
-        disabled={venue.availability === 'booked'}
+        disabled={venue.availability === 'booked' || isBlocked}
       >
-        {venue.availability === 'booked' ? 'Fully booked' : 'Continue booking'}
+        {isBlocked
+          ? 'Not available for this slot'
+          : venue.availability === 'booked'
+            ? 'Fully booked'
+            : 'Continue booking'}
       </Button>
       <p className="mt-2 text-center text-xs text-slate-400">You won’t be charged yet</p>
+
+      {date && (
+        <p
+          className={cn(
+            'mt-1 text-center text-xs',
+            isBlocked
+              ? 'font-medium text-red-600'
+              : availability?.available
+                ? 'text-emerald-600'
+                : 'text-slate-400',
+          )}
+        >
+          {isFetching && 'Checking availability…'}
+          {!isFetching &&
+            (isBlocked
+              ? AVAILABILITY_MSG[availability!.status] ??
+                availability!.message ??
+                'Not available.'
+              : availability?.available
+                ? 'Available for this slot.'
+                : '')}
+        </p>
+      )}
     </div>
   );
 }

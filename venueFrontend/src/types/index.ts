@@ -250,6 +250,23 @@ export interface DashboardAnalytics {
 // ─────────────────────────────────────────────────────────────────────────
 // Calendar bookings + maintenance — ANTICIPATED (mock only). TODO(backend)
 // ─────────────────────────────────────────────────────────────────────────
+export interface ManagerBookingItem {
+  id: string;
+  venue_id: string;
+  venue_name: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_phone: string;
+  start_time: string;
+  end_time: string;
+  total_amount: string; // backend returns money as a string
+  currency: string;
+  status: BookingStatus;
+  guest_count: number;
+  booking_reference: string;
+  created_at: string;
+}
 
 export interface VenueBooking {
   booking_id: string;

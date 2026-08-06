@@ -524,22 +524,6 @@ export function dispatch(
     return { status: 200, data: buildAnalytics() };
   }
 
-  // ---- Calendar bookings (MOCK) — TODO(backend) ---------------------------
-  const bookingsMatch = path.match(/^\/manager\/venues\/([^/]+)\/bookings$/);
-  if (bookingsMatch && method === 'GET') {
-    const start = query.get('start');
-    const end = query.get('end');
-    let list = bookings;
-    if (start && end) {
-      list = bookings.filter(
-        (bk) =>
-          dayjs(bk.start_time).isAfter(dayjs(start).subtract(1, 'day')) &&
-          dayjs(bk.start_time).isBefore(dayjs(end).add(1, 'day')),
-      );
-    }
-    return { status: 200, data: list };
-  }
-
   // ---- Maintenance days (MOCK) — TODO(backend) ----------------------------
   const maintenanceMatch = path.match(/^\/manager\/venues\/([^/]+)\/maintenance$/);
   if (maintenanceMatch) {

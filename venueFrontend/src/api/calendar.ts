@@ -1,26 +1,44 @@
+import dayjs from 'dayjs';
 import { api } from './axios';
 import { endpoints } from './endpoints';
-import type { MaintenanceDay, VenueBooking } from '@/types';
+import type { MaintenanceDay, ManagerBookingItem, VenueBooking } from '@/types';
 
 /**
  * Calendar service.
  *
- * TODO(backend): NONE of these endpoints exist yet.
- *  - Bookings are customer-scoped only; there is no venue-manager route to list
- *    a venue's bookings (the repo has GetByVenueAndDateRange / GetVenueDailyBookings
- *    but they are unrouted).
- *  - Maintenance / blackout days have no model, migration or route at all.
- * These call anticipated endpoints served by the mock adapter.
+ * ✅ Bookings come from the real backend route GET /manager/bookings/venue/:venue_id
+ *    (via `realApi: true`), wrapped as `{ bookings, total, limit, offset }`.
+ * 🟡 Maintenance / blackout days have no backend model, migration or route yet,
+ *    so they are still served by the mock adapter. TODO(backend).
  */
 export const calendarApi = {
   async listBookings(
     venueId: string,
     range: { start: string; end: string },
   ): Promise<VenueBooking[]> {
-    const { data } = await api.get<VenueBooking[]>(endpoints.calendar.bookings(venueId), {
-      params: { start: range.start, end: range.end },
-    });
-    return data ?? [];
+    const { data } = await api.get<{ bookings: ManagerBookingItem[] }>(
+      endpoints.calendar.bookings(venueId),
+      { params: { limit: 100 }, realApi: true },
+    );
+    const bookings = (data.bookings ?? []).map((b): VenueBooking => ({
+      booking_id: b.id,
+      booking_reference: b.booking_reference,
+      venue_id: b.venue_id,
+      customer_name: b.user_name,
+      customer_email: b.user_email,
+      customer_phone: b.user_phone,
+      start_time: b.start_time,
+      end_time: b.end_time,
+      guest_count: b.guest_count,
+      status: b.status,
+      total_amount: Number(b.total_amount),
+      currency: b.currency,
+    }));
+    return bookings.filter(
+      (b) =>
+        dayjs(b.start_time).isAfter(dayjs(range.start).subtract(1, 'day')) &&
+        dayjs(b.start_time).isBefore(dayjs(range.end).add(1, 'day')),
+    );
   },
 
   async listMaintenance(venueId: string): Promise<MaintenanceDay[]> {

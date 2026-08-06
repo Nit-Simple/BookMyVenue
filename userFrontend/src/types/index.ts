@@ -103,6 +103,19 @@ export interface Offer {
 
 export type AvailabilityStatus = 'available' | 'limited' | 'booked';
 
+export interface AvailabilityCheckResult {
+  available: boolean;
+  status:
+    | 'AVAILABLE'
+    | 'VENUE_NOT_FOUND'
+    | 'OUTSIDE_OPERATING_HOURS'
+    | 'PAST_TIME'
+    | 'BELOW_MIN_DURATION'
+    | 'CAPACITY_EXCEEDED'
+    | 'CONFLICT_EXISTS';
+  message?: string;
+}
+
 export interface Venue {
   id: string;
   name: string;
@@ -129,6 +142,18 @@ export interface Venue {
   recommended: boolean;
   cancellationPolicyId: string;
   createdAt: ISODateTimeString;
+}
+export interface AvailabilityCheckResult {
+  available: boolean;
+  status:
+    | 'AVAILABLE'
+    | 'VENUE_NOT_FOUND'
+    | 'OUTSIDE_OPERATING_HOURS'
+    | 'PAST_TIME'
+    | 'BELOW_MIN_DURATION'
+    | 'CAPACITY_EXCEEDED'
+    | 'CONFLICT_EXISTS';
+  message?: string;
 }
 
 // ---------------------------------------------------------------------------

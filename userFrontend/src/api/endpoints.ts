@@ -15,6 +15,7 @@ export const endpoints = {
   venues: {
     list: '/venues',
     detail: (id: string) => `/venues/${id}`,
+    availability: (id: string) => `/venues/${id}/availability`,
     reviews: (id: string) => `/venues/${id}/reviews`,
     trending: '/venues/trending',
     popular: '/venues/popular',

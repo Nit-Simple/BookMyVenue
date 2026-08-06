@@ -82,7 +82,7 @@ export default function CalendarPage() {
       {bookingsQuery.isError ? (
         <ErrorState
           title="Couldn’t load bookings"
-          description="The venue bookings service is unavailable. (Backend route not yet implemented.)"
+          description="Unable to load your bookings. Please try again."
           onRetry={() => bookingsQuery.refetch()}
         />
       ) : bookingsQuery.isLoading ? (

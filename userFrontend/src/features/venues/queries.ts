@@ -9,6 +9,8 @@ export const venueKeys = {
   reviews: (id: string) => ['venues', 'reviews', id] as const,
   collection: (name: string) => ['venues', 'collection', name] as const,
   locations: ['venues', 'locations'] as const,
+  availability: (id: string, start: string, end: string) =>
+    ['venues', 'availability', id, start, end] as const,
 };
 
 export function useVenueList(filters: VenueFilters) {
@@ -32,6 +34,21 @@ export function useVenueReviews(id: string | undefined) {
     queryKey: venueKeys.reviews(id ?? ''),
     queryFn: () => venuesApi.reviews(id!),
     enabled: !!id,
+  });
+}
+
+
+export function useAvailabilityCheck(
+  venueId: string | undefined,
+  range: { start: string; end: string } | null,
+  guestCount: number,
+) {
+  return useQuery({
+    queryKey: venueKeys.availability(venueId ?? '', range?.start ?? '', range?.end ?? ''),
+    queryFn: () =>
+      venuesApi.checkAvailability(venueId!, range!.start, range!.end, guestCount),
+    enabled: !!venueId && !!range,
+    retry: 1,
   });
 }
 
