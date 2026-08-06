@@ -15,7 +15,7 @@ export const endpoints = {
     list: '/manager/venues', // ✅ REAL — venues owned by caller
     create: '/manager/venues', // ✅ REAL — multipart or JSON
     detail: (id: string) => `/manager/venues/${id}`, // ✅ REAL
-    update: (id: string) => `/manager/venues/${id}`, // ✅ REAL (only while PENDING_APPROVAL)
+    update: (id: string) => `/manager/venues/${id}`, // ✅ REAL (blocked only while REJECTED)
     applications: '/manager/venues/applications', // ✅ REAL
     pricing: (id: string) => `/manager/venues/${id}/pricing`, // ✅ REAL (GET + POST)
   },

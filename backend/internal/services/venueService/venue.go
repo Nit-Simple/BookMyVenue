@@ -156,8 +156,8 @@ func (s *VenueService) UpdateVenue(ctx context.Context, actorID uuid.UUID, venue
 		return nil, domain.ErrForbidden
 	}
 
-	if existing.OnboardingStatus != domain.StatusPendingApproval {
-		return nil, errors.New("can only update venue while in PENDING_APPROVAL status")
+	if existing.OnboardingStatus == domain.StatusRejected {
+		return nil, errors.New("cannot update a venue with REJECTED status")
 	}
 
 	return s.venueRepo.UpdateVenue(ctx, venue)

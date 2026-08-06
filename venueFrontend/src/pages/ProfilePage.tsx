@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import dayjs from 'dayjs';
 import toast from 'react-hot-toast';
-import { Building2, Info, Lock, Pencil, Plus, Save, X } from 'lucide-react';
+import { Building2, Info, Pencil, Plus, Save, X } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { MediaUploader, type UploadFile } from '@/components/common/MediaUploader';
@@ -138,7 +138,14 @@ export default function ProfilePage() {
   if (!hasVenue || !venue || showOnboarding) {
     return <OnboardingForm onSuccess={() => setShowOnboarding(false)} />;
   }
-  const canEdit = venue.onboarding_status === 'PENDING_APPROVAL';
+
+  const canEdit = venue.onboarding_status === "APPROVED";
+  console.log('🔍 Venue Debug:', {
+    status: venue.onboarding_status,
+    canEdit,
+    editing,
+    formReadOnly: !canEdit || !editing,
+  });
 
   const onSave = async (values: VenueFormValues) => {
     try {
@@ -195,25 +202,22 @@ export default function ProfilePage() {
         }
       />
 
-      {!canEdit && (
-        <div className="mb-4 flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-800">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Venue details can only be edited while the listing is <strong>pending approval</strong>.
-            Once {venue.onboarding_status === 'APPROVED' ? 'approved' : 'reviewed'}, contact support
-            to change core details. You can still update your <strong>base price</strong> below.
-          </p>
-        </div>
-      )}
-      {canEdit && !editing && (
+      {venue.onboarding_status === "PENDING_APPROVAL" && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800">
           <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>Your venue is pending approval. You can still edit its details until it’s reviewed.</p>
+          <p>Your venue is pending approval. You can edit its details once it is approved.</p>
+        </div>
+      )}
+
+      {venue.onboarding_status === "REJECTED" && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-800">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>Your venue has been rejected. Please contact support to resubmit your venue.</p>
         </div>
       )}
 
       <div className="space-y-4">
-        <VenueForm form={form} readOnly={!editing} />
+        <VenueForm form={form} readOnly={!canEdit || !editing} />
         {venueId && <BasePriceCard venueId={venueId} pricing={pricingQuery.data} />}
         <VenueMediaGallery media={venue.media} />
         {applicationsQuery.data && <ApplicationsPanel applications={applicationsQuery.data} />}
